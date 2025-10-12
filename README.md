@@ -2,12 +2,12 @@
 
 ## 🚀 Future Improvements Roadmap
 
-- 1. AI Chat-Based Deployment Customization
-- 2. Manual Override Capabilities
-- 3. Advanced Device Management 
-- 4. External Factor Analysis and Provide Deployment Success Strategy Before Deployment
-- 5. Compliance & Audit Logs
-- 6. Automated Rollback Capabilities
+- AI Chat-Based Deployment Customization
+- Manual Override Capabilities
+- Advanced Device Management 
+- External Factor Analysis and Provide Deployment Success Strategy Before Deployment
+- Compliance & Audit Logs
+- Automated Rollback Capabilities
 
 ---
 
