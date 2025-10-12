@@ -47,7 +47,7 @@ export default function Layout() {
     <Box>
       <Toolbar sx={{ display: 'flex', justifyContent: 'center', py: 2 }}>
         <Typography variant="h6" noWrap component="div" sx={{ fontWeight: 700 }}>
-          FlexDeploy AI
+          FlexDeploy
         </Typography>
       </Toolbar>
       <Divider sx={{ borderColor: 'rgba(255, 255, 255, 0.12)' }} />
@@ -106,9 +106,9 @@ export default function Layout() {
           </Typography>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
             <Avatar sx={{ width: 32, height: 32, bgcolor: 'secondary.main' }}>
-              M
+              A
             </Avatar>
-            <Typography variant="body2">mohanram</Typography>
+            <Typography variant="body2">admin</Typography>
           </Box>
         </Toolbar>
       </AppBar>
