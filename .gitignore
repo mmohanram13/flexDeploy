@@ -1,0 +1,21 @@
+# Python related
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.env
+*.venv
+env/
+venv/
+*.egg-info/
+dist/
+build/
+
+# Node.js related
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+dist/
+.DS_Store
