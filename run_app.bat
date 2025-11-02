@@ -26,8 +26,8 @@ if not exist "%USERPROFILE%\.aws\credentials" (
     echo.
 )
 
-REM Check if server database exists
-if not exist "server\flexdeploy.db" (
+REM Check if database exists in root directory
+if not exist "flexdeploy.db" (
     echo [WARNING] Database not found. Creating new database...
 )
 

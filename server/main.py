@@ -31,7 +31,8 @@ app.add_middleware(
 
 # Initialize database
 import os
-db_path = os.path.join(os.path.dirname(__file__), "flexdeploy.db")
+# Use flexdeploy.db from the root directory
+db_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "flexdeploy.db")
 db = Database(db_path)
 
 # Initialize Bedrock agents

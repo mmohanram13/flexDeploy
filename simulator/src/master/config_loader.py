@@ -6,8 +6,8 @@ import asyncio
 from typing import List, Dict, Any, Optional
 from threading import Lock
 
-# Database path relative to simulator
-DB_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..', 'server', 'flexdeploy.db'))
+# Database path - use flexdeploy.db from root directory
+DB_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..', 'flexdeploy.db'))
 DB_AVAILABLE = False
 
 # Database lock for thread-safe operations

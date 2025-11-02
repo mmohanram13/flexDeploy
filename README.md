@@ -574,8 +574,9 @@ flexDeploy/
 │   ├── main.py                 # FastAPI server & API endpoints
 │   ├── database.py             # SQLite database management
 │   ├── bedrock_agents.py       # AWS Bedrock AI agents
-│   ├── config.py               # Configuration management
-│   └── flexdeploy.db           # SQLite database file
+│   └── config.py               # Configuration management
+│
+├── flexdeploy.db                # SQLite database file (root)
 │
 ├── ui/                          # Frontend (React/Vite)
 │   ├── src/
@@ -641,10 +642,10 @@ aws sts get-caller-identity
 **Problem**: Database error
 ```bash
 # Check database exists
-ls -la server/flexdeploy.db
+ls -la flexdeploy.db
 
 # If corrupted, restore from backup
-cp server/flexdeploy.db.backup server/flexdeploy.db
+cp flexdeploy.db.backup flexdeploy.db
 ```
 
 ### UI Won't Load
@@ -701,7 +702,7 @@ aws bedrock list-foundation-models --region us-east-1
 **Problem**: Missing tables
 ```bash
 # Check database integrity
-sqlite3 server/flexdeploy.db ".tables"
+sqlite3 flexdeploy.db ".tables"
 
 # If tables missing, run migrations
 python server/migrate_data.py
@@ -820,7 +821,7 @@ python test_bedrock_agents.py
 python -c "from server.config import get_config; get_config().print_config()"
 
 # Test database
-sqlite3 server/flexdeploy.db "SELECT COUNT(*) FROM devices;"
+sqlite3 flexdeploy.db "SELECT COUNT(*) FROM devices;"
 
 # Check AWS credentials
 aws configure list

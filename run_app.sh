@@ -56,8 +56,8 @@ if [ ! -f "$HOME/.aws/credentials" ]; then
     echo ""
 fi
 
-# Check if server database exists
-if [ ! -f "server/flexdeploy.db" ]; then
+# Check if database exists in root directory
+if [ ! -f "flexdeploy.db" ]; then
     echo -e "${YELLOW}⚠️  Database not found. Creating new database...${NC}"
 fi
 

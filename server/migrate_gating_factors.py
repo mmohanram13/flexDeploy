@@ -20,7 +20,7 @@ def backup_database(db_path: str):
     return backup_path
 
 
-def migrate_database(db_path: str = "server/flexdeploy.db"):
+def migrate_database(db_path: str = "flexdeploy.db"):
     """Run the migration"""
     if not Path(db_path).exists():
         print(f"Database not found at {db_path}")

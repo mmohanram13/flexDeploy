@@ -45,7 +45,7 @@ python test_bedrock_agents.py
 curl http://localhost:8000/api/devices
 
 # Check database
-sqlite3 server/flexdeploy.db "SELECT COUNT(*) FROM devices;"
+sqlite3 flexdeploy.db "SELECT COUNT(*) FROM devices;"
 ```
 
 ## ⚙️ Configuration
@@ -178,7 +178,7 @@ Key sections:
 ```
 config.ini                    # App configuration
 ~/.aws/credentials           # AWS credentials
-server/flexdeploy.db         # Database
+flexdeploy.db                # Database (root directory)
 server.log                   # Backend logs
 ui.log                       # Frontend logs
 ```
@@ -199,7 +199,7 @@ cd ui && npm run dev
 
 **Database locked:**
 ```bash
-fuser server/flexdeploy.db  # Find process using DB
+fuser flexdeploy.db  # Find process using DB
 # Kill the process, then restart
 ```
 
