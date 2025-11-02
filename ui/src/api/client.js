@@ -66,6 +66,24 @@ class ApiClient {
     }
   }
 
+  async delete(endpoint) {
+    try {
+      const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+        method: 'DELETE',
+        signal: AbortSignal.timeout(10000), // 10 second timeout
+      });
+      if (!response.ok) {
+        throw new Error(`API error: ${response.statusText}`);
+      }
+      return response.json();
+    } catch (error) {
+      if (error.name === 'TimeoutError' || error.message.includes('fetch')) {
+        throw new Error('Server not reachable. Please check if the server is running.');
+      }
+      throw error;
+    }
+  }
+
   // Devices
   async getDevices() {
     return this.get('/devices');
@@ -90,6 +108,10 @@ class ApiClient {
 
   async stopDeployment(deploymentId) {
     return this.post(`/deployments/${deploymentId}/stop`);
+  }
+
+  async deleteDeployment(deploymentId) {
+    return this.delete(`/deployments/${deploymentId}`);
   }
 
   // Rings

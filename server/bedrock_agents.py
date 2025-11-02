@@ -38,11 +38,13 @@ class BedrockAgentService:
         self.sso_start_url = config.sso_start_url
         self.sso_region = config.sso_region
         
-        # Initialize boto3 client - credentials from ~/.aws/credentials
-        self.bedrock_runtime = boto3.client(
+        # Initialize boto3 client with correct profile - credentials from ~/.aws/credentials
+        # Create session with the correct profile
+        session = boto3.Session(profile_name='942237908630_AdministratorAccess')
+        self.bedrock_runtime = session.client(
             service_name='bedrock-runtime',
             region_name=region_name
-            # Credentials automatically loaded from ~/.aws/credentials:
+            # Credentials automatically loaded from ~/.aws/credentials profile:
             # - aws_access_key_id
             # - aws_secret_access_key
             # - aws_session_token (if using SSO)
@@ -79,7 +81,10 @@ class BedrockAgentService:
             max_tokens = self.default_max_tokens
         if temperature is None:
             temperature = self.default_temperature
-            
+        
+        import time
+        start_time = time.time()
+        
         try:
             # Prepare the request body for Nova models
             request_body = {
@@ -90,10 +95,19 @@ class BedrockAgentService:
                     }
                 ],
                 "inferenceConfig": {
-                    "max_new_tokens": max_tokens,
+                    "maxTokens": max_tokens,
                     "temperature": temperature
                 }
             }
+            
+            print(f"\n{'='*80}")
+            print(f"🚀 BEDROCK API REQUEST")
+            print(f"{'='*80}")
+            print(f"Model: {model_id}")
+            print(f"Max Tokens: {max_tokens}")
+            print(f"Temperature: {temperature}")
+            print(f"Prompt Length: {len(prompt)} characters")
+            print(f"Prompt Preview: {prompt[:200]}...")
             
             # Invoke the model
             response = self.bedrock_runtime.converse(
@@ -106,13 +120,33 @@ class BedrockAgentService:
             output_message = response['output']['message']
             generated_text = output_message['content'][0]['text']
             
+            elapsed_time = time.time() - start_time
+            
+            print(f"\n✅ BEDROCK API RESPONSE")
+            print(f"{'='*80}")
+            print(f"Response Length: {len(generated_text)} characters")
+            print(f"Time Taken: {elapsed_time:.2f}s")
+            print(f"Response Preview: {generated_text[:200]}...")
+            print(f"{'='*80}\n")
+            
             return generated_text
             
         except ClientError as e:
+            elapsed_time = time.time() - start_time
             error_code = e.response['Error']['Code']
             error_message = e.response['Error']['Message']
+            print(f"\n❌ BEDROCK API ERROR (after {elapsed_time:.2f}s)")
+            print(f"{'='*80}")
+            print(f"Error Code: {error_code}")
+            print(f"Error Message: {error_message}")
+            print(f"{'='*80}\n")
             raise Exception(f"Bedrock API error ({error_code}): {error_message}")
         except Exception as e:
+            elapsed_time = time.time() - start_time
+            print(f"\n❌ BEDROCK ERROR (after {elapsed_time:.2f}s)")
+            print(f"{'='*80}")
+            print(f"Error: {str(e)}")
+            print(f"{'='*80}\n")
             raise Exception(f"Error invoking Bedrock model: {str(e)}")
 
 
@@ -163,33 +197,37 @@ class RingCategorizationAgent:
         )
         
         # Step 2: Reasoning Agent - Match device to appropriate ring
+        # Sort rings by priority (highest ring number first)
+        sorted_rings = sorted(ring_prompts, key=lambda r: r['ringId'], reverse=True)
+        
         ring_descriptions = "\n\n".join([
             f"Ring {r['ringId']}: {r['ringName']}\n"
             f"Criteria: {r['categorizationPrompt']}"
-            for r in ring_prompts
+            for r in sorted_rings
         ])
         
         reasoning_prompt = f"""
-        You are a deployment strategy expert. Categorize this device into the most appropriate ring.
+        You are a deployment strategy expert. Evaluate this device against ring criteria in priority order.
         
         Device Metrics Summary:
         {metrics_summary}
         
-        Available Rings:
+        Available Rings (in priority order - highest ring has most priority):
         {ring_descriptions}
         
-        Ring Guidelines:
-        - Ring 0 (Canary/Test Bed): For testing and validation, typically low-risk test devices
-        - Ring 1 (Low Risk): Stable devices with good metrics, can tolerate issues
-        - Ring 2 (High Risk): Devices with concerning metrics or critical but not VIP
-        - Ring 3 (VIP): Critical business devices requiring highest stability
+        IMPORTANT: Evaluate the rings in order from Ring 3 down to Ring 0. Assign the device to the FIRST ring whose criteria it matches.
+        Higher ring numbers have priority - if a device matches multiple rings, it should be assigned to the highest matching ring.
         
-        Based on the device metrics and ring criteria, select the MOST APPROPRIATE ring.
+        Evaluation Process:
+        1. Check if device matches Ring 3 criteria - if yes, assign to Ring 3
+        2. If not, check Ring 2 criteria - if yes, assign to Ring 2
+        3. If not, check Ring 1 criteria - if yes, assign to Ring 1
+        4. If none match, assign to Ring 0 (default/catch-all)
         
         Respond in this JSON format:
         {{
             "ring_id": <selected ring number>,
-            "reasoning": "<brief explanation of why this ring was chosen>"
+            "reasoning": "<brief explanation of why this ring was chosen based on matching criteria>"
         }}
         """
         
@@ -227,7 +265,7 @@ class RingCategorizationAgent:
         ring_prompts: List[Dict[str, Any]]
     ) -> List[Tuple[str, int, str]]:
         """
-        Categorize multiple devices in batch
+        Categorize multiple devices in batch using a single API call
         
         Args:
             devices: List of device data dictionaries
@@ -236,11 +274,110 @@ class RingCategorizationAgent:
         Returns:
             List of tuples: (device_id, ring_id, reasoning)
         """
-        results = []
+        print(f"\n🔄 Batch categorizing {len(devices)} devices...")
+        
+        # Sort rings by priority (highest ring number first)
+        sorted_rings = sorted(ring_prompts, key=lambda r: r['ringId'], reverse=True)
+        
+        # Build ring descriptions
+        ring_descriptions = "\n\n".join([
+            f"Ring {r['ringId']}: {r['ringName']}\n"
+            f"Criteria: {r['categorizationPrompt']}"
+            for r in sorted_rings
+        ])
+        
+        # Build device summaries
+        device_summaries = []
         for device in devices:
-            ring_id, reasoning = self.categorize_device(device, ring_prompts)
-            results.append((device['deviceId'], ring_id, reasoning))
-        return results
+            summary = {
+                "device_id": device['deviceId'],
+                "device_name": device.get('deviceName', 'N/A'),
+                "cpu_usage": device.get('avgCpuUsage', 0),
+                "memory_usage": device.get('avgMemoryUsage', 0),
+                "disk_free": device.get('avgDiskSpace', 0),
+                "risk_score": device.get('riskScore', 0),
+                "department": device.get('department', 'N/A'),
+                "site": device.get('site', 'N/A'),
+            }
+            device_summaries.append(summary)
+        
+        # Single prompt for all devices
+        batch_prompt = f"""
+        You are a deployment strategy expert. Categorize ALL devices into appropriate rings based on their metrics and ring criteria.
+        
+        Available Rings (in priority order - highest ring has most priority):
+        {ring_descriptions}
+        
+        IMPORTANT EVALUATION RULES:
+        1. Evaluate rings from Ring 3 down to Ring 0
+        2. Assign each device to the FIRST ring whose criteria it matches
+        3. Higher ring numbers have priority - if a device matches multiple rings, assign to the highest matching ring
+        4. If a device doesn't match any ring criteria, assign to Ring 0 (default/catch-all)
+        
+        Devices to Categorize:
+        {json.dumps(device_summaries, indent=2)}
+        
+        Respond with a JSON array containing one object per device in this EXACT format:
+        [
+            {{
+                "device_id": "<device_id>",
+                "ring_id": <number>,
+                "reasoning": "<brief explanation>"
+            }},
+            ...
+        ]
+        
+        IMPORTANT: Return ONLY the JSON array, no additional text or markdown formatting.
+        """
+        
+        try:
+            response = self.bedrock.invoke_model(
+                prompt=batch_prompt,
+                temperature=0.3,
+                max_tokens=4000  # Increased for batch response
+            )
+            
+            # Parse the response
+            response_text = response.strip()
+            
+            # Remove markdown code blocks if present
+            if "```json" in response_text:
+                json_start = response_text.find("```json") + 7
+                json_end = response_text.find("```", json_start)
+                response_text = response_text[json_start:json_end].strip()
+            elif "```" in response_text:
+                json_start = response_text.find("```") + 3
+                json_end = response_text.find("```", json_start)
+                response_text = response_text[json_start:json_end].strip()
+            
+            # Find JSON array in response
+            if "[" in response_text:
+                json_start = response_text.find("[")
+                json_end = response_text.rfind("]") + 1
+                response_text = response_text[json_start:json_end]
+            
+            categorizations = json.loads(response_text)
+            
+            # Convert to expected format
+            results = []
+            for cat in categorizations:
+                device_id = cat.get("device_id")
+                ring_id = int(cat.get("ring_id", 0))
+                reasoning = cat.get("reasoning", "No reasoning provided")
+                results.append((device_id, ring_id, reasoning))
+            
+            print(f"✅ Successfully categorized {len(results)} devices in single batch")
+            return results
+            
+        except Exception as e:
+            print(f"⚠️  Batch categorization failed: {str(e)}")
+            print(f"   Falling back to individual categorization...")
+            # Fallback to individual categorization
+            results = []
+            for device in devices:
+                ring_id, reasoning = self.categorize_device(device, ring_prompts)
+                results.append((device['deviceId'], ring_id, reasoning))
+            return results
 
 
 class DeploymentFailureAgent:
@@ -489,6 +626,102 @@ class GatingFactorAgent:
                 "risk_level": "medium",
                 "suggestions": ["Unable to validate - proceeding with current factors"],
                 "recommended_adjustments": {}
+            }
+    
+    def evaluate_gating_decision(
+        self,
+        gating_prompt: str,
+        device_metrics: List[Dict[str, Any]],
+        ring_name: str
+    ) -> Dict[str, Any]:
+        """
+        Evaluate whether deployment should proceed to next ring based on gating prompt
+        
+        Args:
+            gating_prompt: Natural language gating criteria
+            device_metrics: List of device metrics from current ring
+            ring_name: Name of the current ring
+            
+        Returns:
+            Decision with reasoning
+        """
+        print(f"\n🔍 Evaluating gating decision for {ring_name}...")
+        
+        # Summarize device metrics
+        metrics_summary = {
+            "total_devices": len(device_metrics),
+            "avg_cpu_usage": sum(d.get('avgCpuUsage', 0) for d in device_metrics) / len(device_metrics) if device_metrics else 0,
+            "avg_memory_usage": sum(d.get('avgMemoryUsage', 0) for d in device_metrics) / len(device_metrics) if device_metrics else 0,
+            "avg_disk_free": sum(d.get('avgDiskSpace', 0) for d in device_metrics) / len(device_metrics) if device_metrics else 0,
+            "avg_risk_score": sum(d.get('riskScore', 50) for d in device_metrics) / len(device_metrics) if device_metrics else 50,
+            "max_cpu_usage": max(d.get('avgCpuUsage', 0) for d in device_metrics) if device_metrics else 0,
+            "max_memory_usage": max(d.get('avgMemoryUsage', 0) for d in device_metrics) if device_metrics else 0,
+            "min_disk_free": min(d.get('avgDiskSpace', 100) for d in device_metrics) if device_metrics else 100,
+        }
+        
+        decision_prompt = f"""
+        You are a deployment gating decision expert. Determine whether deployment should proceed to the next ring.
+        
+        Current Ring: {ring_name}
+        
+        Gating Criteria (from user):
+        "{gating_prompt}"
+        
+        Device Metrics Summary:
+        {json.dumps(metrics_summary, indent=2)}
+        
+        Based on the gating criteria and device metrics, decide whether the deployment should:
+        - PROCEED to the next ring (metrics meet the criteria)
+        - STOP (metrics don't meet the criteria)
+        
+        Respond ONLY with a JSON object in this exact format:
+        {{
+            "should_proceed": <true/false>,
+            "decision": "<PROCEED or STOP>",
+            "confidence": <0.0 to 1.0>,
+            "reasoning": "<detailed explanation of why this decision was made>",
+            "key_factors": ["<factor 1>", "<factor 2>"]
+        }}
+        """
+        
+        try:
+            response = self.bedrock.invoke_model(
+                prompt=decision_prompt,
+                temperature=0.2  # Lower temperature for more consistent decisions
+            )
+            
+            # Parse response
+            response_text = response.strip()
+            if "```json" in response_text:
+                json_start = response_text.find("```json") + 7
+                json_end = response_text.find("```", json_start)
+                response_text = response_text[json_start:json_end].strip()
+            elif "```" in response_text:
+                json_start = response_text.find("```") + 3
+                json_end = response_text.find("```", json_start)
+                response_text = response_text[json_start:json_end].strip()
+            
+            # Find JSON object in response
+            if "{" in response_text:
+                json_start = response_text.find("{")
+                json_end = response_text.rfind("}") + 1
+                response_text = response_text[json_start:json_end]
+            
+            result = json.loads(response_text)
+            
+            print(f"{'✅' if result.get('should_proceed') else '🛑'} Gating Decision: {result.get('decision')} (confidence: {result.get('confidence', 0):.2f})")
+            
+            return result
+            
+        except Exception as e:
+            print(f"⚠️  Gating evaluation failed: {str(e)}")
+            # Conservative fallback: stop deployment if evaluation fails
+            return {
+                "should_proceed": False,
+                "decision": "STOP",
+                "confidence": 0.5,
+                "reasoning": f"Unable to evaluate gating criteria due to error: {str(e)}. Defaulting to safe stop.",
+                "key_factors": ["evaluation_error"]
             }
 
 

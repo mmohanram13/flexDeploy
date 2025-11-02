@@ -62,7 +62,9 @@ import boto3
 from botocore.exceptions import ClientError, NoCredentialsError
 
 try:
-    client = boto3.client('bedrock-runtime', region_name='us-east-1')
+    # Create session with the correct profile
+    session = boto3.Session(profile_name='942237908630_AdministratorAccess')
+    client = session.client('bedrock-runtime', region_name='us-east-1')
     
     # Try a minimal API call
     response = client.converse(
@@ -71,7 +73,7 @@ try:
             'role': 'user',
             'content': [{'text': 'test'}]
         }],
-        inferenceConfig={'max_new_tokens': 5}
+        inferenceConfig={'maxTokens': 5}
     )
     
     print("\033[0;32m✓ AWS Bedrock access verified\033[0m")

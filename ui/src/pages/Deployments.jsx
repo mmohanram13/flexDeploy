@@ -87,6 +87,20 @@ export default function Deployments() {
     }
   };
 
+  const handleDeleteDeployment = async (deploymentId) => {
+    if (!window.confirm('Are you sure you want to delete this deployment? This action cannot be undone.')) {
+      return;
+    }
+
+    try {
+      await apiClient.deleteDeployment(deploymentId);
+      fetchDeployments();
+    } catch (error) {
+      console.error('Error deleting deployment:', error);
+      alert('Failed to delete deployment.');
+    }
+  };
+
   const handleOpenDialog = () => {
     setOpenDialog(true);
   };
@@ -211,6 +225,14 @@ export default function Deployments() {
                     >
                       View Details
                     </Button>
+                    <Button
+                      variant="outlined"
+                      size="small"
+                      color="error"
+                      onClick={() => handleDeleteDeployment(deployment.deploymentId)}
+                    >
+                      Delete
+                    </Button>
                   </Box>
                 </TableCell>
               </TableRow>
@@ -262,56 +284,50 @@ export default function Deployments() {
                 <Typography variant="subtitle2" gutterBottom>
                   Custom Gating Factors
                 </Typography>
-                <Grid container spacing={2} sx={{ mt: 1 }}>
-                  <Grid item xs={12} sm={4}>
-                    <TextField
-                      label="Avg CPU Usage Max (%)"
-                      type="number"
-                      value={newDeployment.customGatingFactors.avgCpuUsageMax}
-                      onChange={(e) => setNewDeployment({
-                        ...newDeployment,
-                        customGatingFactors: {
-                          ...newDeployment.customGatingFactors,
-                          avgCpuUsageMax: parseFloat(e.target.value) || 0
-                        }
-                      })}
-                      inputProps={{ min: 0, max: 100 }}
-                      fullWidth
-                    />
-                  </Grid>
-                  <Grid item xs={12} sm={4}>
-                    <TextField
-                      label="Avg Memory Usage Max (%)"
-                      type="number"
-                      value={newDeployment.customGatingFactors.avgMemoryUsageMax}
-                      onChange={(e) => setNewDeployment({
-                        ...newDeployment,
-                        customGatingFactors: {
-                          ...newDeployment.customGatingFactors,
-                          avgMemoryUsageMax: parseFloat(e.target.value) || 0
-                        }
-                      })}
-                      inputProps={{ min: 0, max: 100 }}
-                      fullWidth
-                    />
-                  </Grid>
-                  <Grid item xs={12} sm={4}>
-                    <TextField
-                      label="Avg Disk Free Space Min (%)"
-                      type="number"
-                      value={newDeployment.customGatingFactors.avgDiskFreeSpaceMin}
-                      onChange={(e) => setNewDeployment({
-                        ...newDeployment,
-                        customGatingFactors: {
-                          ...newDeployment.customGatingFactors,
-                          avgDiskFreeSpaceMin: parseFloat(e.target.value) || 0
-                        }
-                      })}
-                      inputProps={{ min: 0, max: 100 }}
-                      fullWidth
-                    />
-                  </Grid>
-                </Grid>
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                  <TextField
+                    label="Avg CPU Usage Max (%)"
+                    type="number"
+                    value={newDeployment.customGatingFactors.avgCpuUsageMax}
+                    onChange={(e) => setNewDeployment({
+                      ...newDeployment,
+                      customGatingFactors: {
+                        ...newDeployment.customGatingFactors,
+                        avgCpuUsageMax: parseFloat(e.target.value) || 0
+                      }
+                    })}
+                    inputProps={{ min: 0, max: 100 }}
+                    fullWidth
+                  />
+                  <TextField
+                    label="Avg Memory Usage Max (%)"
+                    type="number"
+                    value={newDeployment.customGatingFactors.avgMemoryUsageMax}
+                    onChange={(e) => setNewDeployment({
+                      ...newDeployment,
+                      customGatingFactors: {
+                        ...newDeployment.customGatingFactors,
+                        avgMemoryUsageMax: parseFloat(e.target.value) || 0
+                      }
+                    })}
+                    inputProps={{ min: 0, max: 100 }}
+                    fullWidth
+                  />
+                  <TextField
+                    label="Avg Disk Free Space Min (%)"
+                    type="number"
+                    value={newDeployment.customGatingFactors.avgDiskFreeSpaceMin}
+                    onChange={(e) => setNewDeployment({
+                      ...newDeployment,
+                      customGatingFactors: {
+                        ...newDeployment.customGatingFactors,
+                        avgDiskFreeSpaceMin: parseFloat(e.target.value) || 0
+                      }
+                    })}
+                    inputProps={{ min: 0, max: 100 }}
+                    fullWidth
+                  />
+                </Box>
               </Paper>
             )}
 
@@ -320,12 +336,12 @@ export default function Deployments() {
                 label="Gating Factor Prompt"
                 value={newDeployment.gatingPrompt}
                 onChange={(e) => setNewDeployment({ ...newDeployment, gatingPrompt: e.target.value })}
-                placeholder="e.g., 'Conservative rollout: only proceed if CPU usage is below 60% and memory usage is below 70%'"
+                placeholder="e.g., 'Only proceed to next ring if average CPU usage is below 60% and memory usage is below 70%'"
                 multiline
                 rows={3}
                 fullWidth
                 required
-                helperText="Describe your desired gating criteria in natural language. AI will interpret and set appropriate values."
+                helperText="Describe your desired gating criteria in natural language. AI will analyze device metrics against this prompt to determine whether to proceed to the next ring."
               />
             )}
           </Box>

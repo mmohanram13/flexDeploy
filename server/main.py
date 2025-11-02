@@ -596,6 +596,39 @@ async def stop_deployment(deployment_id: str):
     return {"message": "Deployment stopped successfully"}
 
 
+@app.delete("/api/deployments/{deployment_id}")
+async def delete_deployment(deployment_id: str):
+    """Delete a deployment and its related data"""
+    cursor = db.conn.cursor()
+    
+    # Check if deployment exists
+    deployment = cursor.execute("""
+        SELECT deployment_id FROM deployments WHERE deployment_id = ?
+    """, (deployment_id,)).fetchone()
+    
+    if not deployment:
+        raise HTTPException(status_code=404, detail="Deployment not found")
+    
+    # Delete related deployment_gating_factors
+    cursor.execute("""
+        DELETE FROM deployment_gating_factors WHERE deployment_id = ?
+    """, (deployment_id,))
+    
+    # Delete related deployment_rings
+    cursor.execute("""
+        DELETE FROM deployment_rings WHERE deployment_id = ?
+    """, (deployment_id,))
+    
+    # Delete the deployment itself
+    cursor.execute("""
+        DELETE FROM deployments WHERE deployment_id = ?
+    """, (deployment_id,))
+    
+    db.conn.commit()
+    
+    return {"message": "Deployment deleted successfully"}
+
+
 # AI Agent Endpoints
 
 @app.post("/api/ai/categorize-devices")

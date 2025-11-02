@@ -59,14 +59,22 @@ export default function Rings() {
 
   const handleApply = async () => {
     try {
+      // Update ring prompts and gating factors
       await Promise.all([
         ...rings.map((ring) => apiClient.updateRing(ring.ringId, ring)),
         apiClient.updateGatingFactors(gatingFactors),
       ]);
-      alert('Configurations updated successfully!');
+      
+      // Trigger AI categorization of all devices based on updated prompts
+      setLoading(true);
+      await apiClient.aiCategorizeDevices();
+      
+      alert('Configurations updated and devices recategorized successfully!');
     } catch (error) {
       console.error('Error updating configurations:', error);
-      alert('Failed to update configurations');
+      alert('Failed to update configurations: ' + error.message);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -165,13 +173,16 @@ export default function Rings() {
               <Typography variant="subtitle1" gutterBottom>
                 Categorization Prompt
               </Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                Describe the criteria for devices to be assigned to this ring. AI will evaluate each device's data against this prompt. Higher ring numbers have priority.
+              </Typography>
               <TextField
                 fullWidth
                 multiline
                 rows={3}
                 value={ring.categorizationPrompt}
                 onChange={(e) => handlePromptChange(ring.ringId, e.target.value)}
-                placeholder="Describe how devices should be categorized into this ring..."
+                placeholder="e.g., 'VIP devices with critical business functions and high uptime requirements'"
               />
             </Box>
           </AccordionDetails>

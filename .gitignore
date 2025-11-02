@@ -34,3 +34,4 @@ server.log
 ui.log
 *.log
 *.db
+server/*.db

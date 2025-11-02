@@ -15,3 +15,7 @@ dependencies = [
     "boto3>=1.35.0",
     "botocore>=1.35.0",
 ]
+
+[tool.setuptools.packages.find]
+include = ["server*", "simulator*"]
+exclude = ["ui*"]

@@ -299,7 +299,7 @@ sso_start_url = https://superopsglobalhackathon.awsapps.com/start/#
 sso_region = us-east-2
 
 # AWS Bedrock Configuration
-bedrock_region = us-east-1
+bedrock_region = us-east-2
 bedrock_model_pro = us.amazon.nova-pro-v1:0
 bedrock_model_lite = us.amazon.nova-lite-v1:0
 
