@@ -60,29 +60,58 @@ def migrate_rings(db):
     
     rings = [
         (0, 'Ring 0 - Canary (Test Bed)', 
-         'Test devices for initial validation. Non-production systems only.',
-         0, 100, 100, 100, 0),
+         'Test devices for initial validation. Non-production systems only.'),
         (1, 'Ring 1 - Low Risk Devices',
-         'Devices with stable configurations, recent successful deployment history, low risk scores (71-100), standard configurations, non-executive users.',
-         71, 100, 30, 40, 50),
+         'Devices with stable configurations, recent successful deployment history, low risk scores (71-100), standard configurations, non-executive users.'),
         (2, 'Ring 2 - High Risk Devices',
-         'Business-critical devices with moderate to high resource usage, risk scores (31-70), mixed configurations, production systems.',
-         31, 70, 80, 80, 20),
+         'Business-critical devices with moderate to high resource usage, risk scores (31-70), mixed configurations, production systems.'),
         (3, 'Ring 3 - VIP Devices',
-         'Executive and leadership devices, highest stability requirements, risk scores (0-30 indicating high resource usage), critical systems. Deploy only after all other rings successful.',
-         0, 30, 100, 100, 0),
+         'Executive and leadership devices, highest stability requirements, risk scores (0-30 indicating high resource usage), critical systems. Deploy only after all other rings successful.'),
     ]
     
     for ring in rings:
         cursor.execute("""
-            INSERT INTO rings (
-                ring_id, ring_name, categorization_prompt, risk_score_min, risk_score_max,
-                avg_cpu_usage_max, avg_memory_usage_max, avg_disk_free_space_min
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO rings (ring_id, ring_name, categorization_prompt)
+            VALUES (?, ?, ?)
         """, ring)
     
     db.conn.commit()
     print(f"✓ Migrated {len(rings)} rings")
+
+
+def migrate_default_gating_factors(db):
+    """Migrate default gating factors"""
+    cursor = db.conn.cursor()
+    
+    # Set sensible default gating factors
+    cursor.execute("""
+        INSERT INTO default_gating_factors (
+            avg_cpu_usage_max, avg_memory_usage_max, avg_disk_free_space_min,
+            risk_score_min, risk_score_max
+        ) VALUES (?, ?, ?, ?, ?)
+    """, (100, 100, 0, 0, 100))
+    
+    db.conn.commit()
+    print("✓ Migrated default gating factors")
+
+
+def migrate_deployment_gating_factors(db):
+    """Migrate deployment-specific gating factors"""
+    cursor = db.conn.cursor()
+    
+    # Get all deployments and set their gating factors
+    deployments = cursor.execute("SELECT deployment_id FROM deployments").fetchall()
+    
+    for (deployment_id,) in deployments:
+        cursor.execute("""
+            INSERT INTO deployment_gating_factors (
+                deployment_id, avg_cpu_usage_max, avg_memory_usage_max, 
+                avg_disk_free_space_min, risk_score_min, risk_score_max
+            ) VALUES (?, ?, ?, ?, ?, ?)
+        """, (deployment_id, 100, 100, 0, 0, 100))
+    
+    db.conn.commit()
+    print(f"✓ Migrated gating factors for {len(deployments)} deployments")
 
 
 def migrate_deployments(db):
@@ -153,8 +182,10 @@ def main():
     
     # Migrate all data
     migrate_rings(db)
+    migrate_default_gating_factors(db)
     migrate_devices(db)
     migrate_deployments(db)
+    migrate_deployment_gating_factors(db)
     migrate_deployment_rings(db)
     
     # Verify migration
@@ -172,6 +203,12 @@ def main():
     
     deployment_ring_count = cursor.execute("SELECT COUNT(*) FROM deployment_rings").fetchone()[0]
     print(f"  Deployment Rings: {deployment_ring_count}")
+    
+    default_gating_count = cursor.execute("SELECT COUNT(*) FROM default_gating_factors").fetchone()[0]
+    print(f"  Default Gating Factors: {default_gating_count}")
+    
+    deployment_gating_count = cursor.execute("SELECT COUNT(*) FROM deployment_gating_factors").fetchone()[0]
+    print(f"  Deployment Gating Factors: {deployment_gating_count}")
     
     print("\n✓ Migration completed successfully!")
     
