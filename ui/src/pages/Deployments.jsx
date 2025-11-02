@@ -12,6 +12,17 @@ import {
   Chip,
   Button,
   CircularProgress,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  TextField,
+  Radio,
+  RadioGroup,
+  FormControlLabel,
+  FormControl,
+  FormLabel,
+  Grid,
 } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
 import { apiClient } from '../api/client';
@@ -20,6 +31,17 @@ export default function Deployments() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [deployments, setDeployments] = useState([]);
+  const [openDialog, setOpenDialog] = useState(false);
+  const [newDeployment, setNewDeployment] = useState({
+    deploymentName: '',
+    gatingFactorMode: 'default', // 'default', 'custom', or 'prompt'
+    customGatingFactors: {
+      avgCpuUsageMax: 100,
+      avgMemoryUsageMax: 100,
+      avgDiskFreeSpaceMin: 0,
+    },
+    gatingPrompt: '',
+  });
 
   useEffect(() => {
     fetchDeployments();
@@ -65,6 +87,57 @@ export default function Deployments() {
     }
   };
 
+  const handleOpenDialog = () => {
+    setOpenDialog(true);
+  };
+
+  const handleCloseDialog = () => {
+    setOpenDialog(false);
+    setNewDeployment({
+      deploymentName: '',
+      gatingFactorMode: 'default',
+      customGatingFactors: {
+        avgCpuUsageMax: 100,
+        avgMemoryUsageMax: 100,
+        avgDiskFreeSpaceMin: 0,
+      },
+      gatingPrompt: '',
+    });
+  };
+
+  const handleCreateDeployment = async () => {
+    if (!newDeployment.deploymentName) {
+      alert('Please provide a deployment name');
+      return;
+    }
+
+    if (newDeployment.gatingFactorMode === 'prompt' && !newDeployment.gatingPrompt) {
+      alert('Please provide a gating factor prompt');
+      return;
+    }
+
+    try {
+      const deploymentData = {
+        deploymentName: newDeployment.deploymentName,
+        status: 'Not Started',
+        gatingFactorMode: newDeployment.gatingFactorMode,
+      };
+
+      if (newDeployment.gatingFactorMode === 'custom') {
+        deploymentData.customGatingFactors = newDeployment.customGatingFactors;
+      } else if (newDeployment.gatingFactorMode === 'prompt') {
+        deploymentData.gatingPrompt = newDeployment.gatingPrompt;
+      }
+
+      await apiClient.createDeployment(deploymentData);
+      handleCloseDialog();
+      fetchDeployments();
+    } catch (error) {
+      console.error('Error creating deployment:', error);
+      alert('Failed to create deployment.');
+    }
+  };
+
   if (loading) {
     return (
       <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
@@ -75,9 +148,19 @@ export default function Deployments() {
 
   return (
     <Box>
-      <Typography variant="h4" gutterBottom>
-        Deployments
-      </Typography>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+        <Typography variant="h4">
+          Deployments
+        </Typography>
+        <Button
+          variant="contained"
+          color="primary"
+          size="large"
+          onClick={handleOpenDialog}
+        >
+          Create Deployment
+        </Button>
+      </Box>
 
       <TableContainer component={Paper} elevation={2}>
         <Table>
@@ -135,6 +218,125 @@ export default function Deployments() {
           </TableBody>
         </Table>
       </TableContainer>
+
+      {/* Create Deployment Dialog */}
+      <Dialog open={openDialog} onClose={handleCloseDialog} maxWidth="md" fullWidth>
+        <DialogTitle>Create New Deployment</DialogTitle>
+        <DialogContent>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3, mt: 2 }}>
+            <TextField
+              label="Deployment Name"
+              value={newDeployment.deploymentName}
+              onChange={(e) => setNewDeployment({ ...newDeployment, deploymentName: e.target.value })}
+              placeholder="Windows Security Update KB5043146"
+              fullWidth
+              required
+            />
+
+            <FormControl component="fieldset">
+              <FormLabel component="legend">Gating Factors Configuration</FormLabel>
+              <RadioGroup
+                value={newDeployment.gatingFactorMode}
+                onChange={(e) => setNewDeployment({ ...newDeployment, gatingFactorMode: e.target.value })}
+              >
+                <FormControlLabel
+                  value="default"
+                  control={<Radio />}
+                  label="Use Default Gating Factors"
+                />
+                <FormControlLabel
+                  value="custom"
+                  control={<Radio />}
+                  label="Provide Custom Gating Factors"
+                />
+                <FormControlLabel
+                  value="prompt"
+                  control={<Radio />}
+                  label="Generate from Prompt (AI-powered)"
+                />
+              </RadioGroup>
+            </FormControl>
+
+            {newDeployment.gatingFactorMode === 'custom' && (
+              <Paper elevation={1} sx={{ p: 2 }}>
+                <Typography variant="subtitle2" gutterBottom>
+                  Custom Gating Factors
+                </Typography>
+                <Grid container spacing={2} sx={{ mt: 1 }}>
+                  <Grid item xs={12} sm={4}>
+                    <TextField
+                      label="Avg CPU Usage Max (%)"
+                      type="number"
+                      value={newDeployment.customGatingFactors.avgCpuUsageMax}
+                      onChange={(e) => setNewDeployment({
+                        ...newDeployment,
+                        customGatingFactors: {
+                          ...newDeployment.customGatingFactors,
+                          avgCpuUsageMax: parseFloat(e.target.value) || 0
+                        }
+                      })}
+                      inputProps={{ min: 0, max: 100 }}
+                      fullWidth
+                    />
+                  </Grid>
+                  <Grid item xs={12} sm={4}>
+                    <TextField
+                      label="Avg Memory Usage Max (%)"
+                      type="number"
+                      value={newDeployment.customGatingFactors.avgMemoryUsageMax}
+                      onChange={(e) => setNewDeployment({
+                        ...newDeployment,
+                        customGatingFactors: {
+                          ...newDeployment.customGatingFactors,
+                          avgMemoryUsageMax: parseFloat(e.target.value) || 0
+                        }
+                      })}
+                      inputProps={{ min: 0, max: 100 }}
+                      fullWidth
+                    />
+                  </Grid>
+                  <Grid item xs={12} sm={4}>
+                    <TextField
+                      label="Avg Disk Free Space Min (%)"
+                      type="number"
+                      value={newDeployment.customGatingFactors.avgDiskFreeSpaceMin}
+                      onChange={(e) => setNewDeployment({
+                        ...newDeployment,
+                        customGatingFactors: {
+                          ...newDeployment.customGatingFactors,
+                          avgDiskFreeSpaceMin: parseFloat(e.target.value) || 0
+                        }
+                      })}
+                      inputProps={{ min: 0, max: 100 }}
+                      fullWidth
+                    />
+                  </Grid>
+                </Grid>
+              </Paper>
+            )}
+
+            {newDeployment.gatingFactorMode === 'prompt' && (
+              <TextField
+                label="Gating Factor Prompt"
+                value={newDeployment.gatingPrompt}
+                onChange={(e) => setNewDeployment({ ...newDeployment, gatingPrompt: e.target.value })}
+                placeholder="e.g., 'Conservative rollout: only proceed if CPU usage is below 60% and memory usage is below 70%'"
+                multiline
+                rows={3}
+                fullWidth
+                required
+                helperText="Describe your desired gating criteria in natural language. AI will interpret and set appropriate values."
+              />
+            )}
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleCloseDialog}>Cancel</Button>
+          <Button onClick={handleCreateDeployment} variant="contained" color="primary">
+            Create
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 }

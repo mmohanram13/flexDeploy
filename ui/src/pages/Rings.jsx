@@ -17,17 +17,26 @@ import { apiClient } from '../api/client';
 export default function Rings() {
   const [loading, setLoading] = useState(true);
   const [rings, setRings] = useState([]);
+  const [gatingFactors, setGatingFactors] = useState({
+    avgCpuUsageMax: 100,
+    avgMemoryUsageMax: 100,
+    avgDiskFreeSpaceMin: 0,
+  });
 
   useEffect(() => {
-    fetchRings();
+    fetchData();
   }, []);
 
-  const fetchRings = async () => {
+  const fetchData = async () => {
     try {
-      const data = await apiClient.getRings();
-      setRings(data);
+      const [ringsData, gatingData] = await Promise.all([
+        apiClient.getRings(),
+        apiClient.getGatingFactors(),
+      ]);
+      setRings(ringsData);
+      setGatingFactors(gatingData);
     } catch (error) {
-      console.error('Error fetching rings:', error);
+      console.error('Error fetching data:', error);
     } finally {
       setLoading(false);
     }
@@ -41,40 +50,23 @@ export default function Rings() {
     );
   };
 
-  const handleGatingFactorChange = (ringId, factorPath, value) => {
-    setRings((prevRings) =>
-      prevRings.map((ring) => {
-        if (ring.ringId !== ringId) return ring;
-        
-        const newGatingFactors = { ...ring.gatingFactors };
-        const [factor, subkey] = factorPath.split('.');
-        
-        if (subkey) {
-          newGatingFactors[factor] = {
-            ...newGatingFactors[factor],
-            [subkey]: parseFloat(value) || 0,
-          };
-        } else {
-          newGatingFactors[factor] = parseFloat(value) || 0;
-        }
-        
-        return {
-          ...ring,
-          gatingFactors: newGatingFactors,
-        };
-      })
-    );
+  const handleGatingFactorChange = (factor, value) => {
+    setGatingFactors((prev) => ({
+      ...prev,
+      [factor]: parseFloat(value) || 0,
+    }));
   };
 
   const handleApply = async () => {
     try {
-      await Promise.all(
-        rings.map((ring) => apiClient.updateRing(ring.ringId, ring))
-      );
-      alert('Ring configurations updated successfully!');
+      await Promise.all([
+        ...rings.map((ring) => apiClient.updateRing(ring.ringId, ring)),
+        apiClient.updateGatingFactors(gatingFactors),
+      ]);
+      alert('Configurations updated successfully!');
     } catch (error) {
-      console.error('Error updating rings:', error);
-      alert('Failed to update ring configurations');
+      console.error('Error updating configurations:', error);
+      alert('Failed to update configurations');
     }
   };
 
@@ -102,6 +94,67 @@ export default function Rings() {
         </Button>
       </Box>
 
+      {/* Default Gating Factors Section */}
+      <Paper elevation={2} sx={{ p: 3, mb: 3 }}>
+        <Typography variant="h6" gutterBottom>
+          Default Gating Factors
+        </Typography>
+        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+          These gating factors will be applied to all new deployments.
+        </Typography>
+        <Grid container spacing={2}>
+          <Grid item xs={12} sm={4}>
+            <Paper elevation={1} sx={{ p: 2 }}>
+              <Typography variant="body2" color="text.secondary" gutterBottom>
+                Avg CPU Usage Max (%)
+              </Typography>
+              <TextField
+                fullWidth
+                type="number"
+                value={gatingFactors.avgCpuUsageMax || ''}
+                onChange={(e) => handleGatingFactorChange('avgCpuUsageMax', e.target.value)}
+                placeholder="100"
+                inputProps={{ min: 0, max: 100 }}
+              />
+            </Paper>
+          </Grid>
+          <Grid item xs={12} sm={4}>
+            <Paper elevation={1} sx={{ p: 2 }}>
+              <Typography variant="body2" color="text.secondary" gutterBottom>
+                Avg Memory Usage Max (%)
+              </Typography>
+              <TextField
+                fullWidth
+                type="number"
+                value={gatingFactors.avgMemoryUsageMax || ''}
+                onChange={(e) => handleGatingFactorChange('avgMemoryUsageMax', e.target.value)}
+                placeholder="100"
+                inputProps={{ min: 0, max: 100 }}
+              />
+            </Paper>
+          </Grid>
+          <Grid item xs={12} sm={4}>
+            <Paper elevation={1} sx={{ p: 2 }}>
+              <Typography variant="body2" color="text.secondary" gutterBottom>
+                Avg Disk Free Space Min (%)
+              </Typography>
+              <TextField
+                fullWidth
+                type="number"
+                value={gatingFactors.avgDiskFreeSpaceMin || ''}
+                onChange={(e) => handleGatingFactorChange('avgDiskFreeSpaceMin', e.target.value)}
+                placeholder="--"
+                inputProps={{ min: 0, max: 100 }}
+              />
+            </Paper>
+          </Grid>
+        </Grid>
+      </Paper>
+
+      {/* Ring Configuration Section */}
+      <Typography variant="h6" gutterBottom>
+        Ring Configurations
+      </Typography>
       {rings.map((ring) => (
         <Accordion key={ring.ringId} elevation={2} sx={{ mb: 2 }} defaultExpanded>
           <AccordionSummary expandIcon={<ExpandMoreIcon />}>
@@ -119,65 +172,7 @@ export default function Rings() {
                 value={ring.categorizationPrompt}
                 onChange={(e) => handlePromptChange(ring.ringId, e.target.value)}
                 placeholder="Describe how devices should be categorized into this ring..."
-                sx={{ mb: 3 }}
               />
-
-              <Typography variant="subtitle1" gutterBottom>
-                Gating Factors
-              </Typography>
-              <Grid container spacing={2}>
-                <Grid item xs={12} sm={4}>
-                  <Paper elevation={1} sx={{ p: 2 }}>
-                    <Typography variant="body2" color="text.secondary" gutterBottom>
-                      Avg CPU Usage Max (%)
-                    </Typography>
-                    <TextField
-                      fullWidth
-                      type="number"
-                      value={ring.gatingFactors.avgCpuUsage?.max || ''}
-                      onChange={(e) =>
-                        handleGatingFactorChange(ring.ringId, 'avgCpuUsage.max', e.target.value)
-                      }
-                      placeholder="--"
-                      inputProps={{ min: 0, max: 100 }}
-                    />
-                  </Paper>
-                </Grid>
-                <Grid item xs={12} sm={4}>
-                  <Paper elevation={1} sx={{ p: 2 }}>
-                    <Typography variant="body2" color="text.secondary" gutterBottom>
-                      Avg Memory Usage Max (%)
-                    </Typography>
-                    <TextField
-                      fullWidth
-                      type="number"
-                      value={ring.gatingFactors.avgMemoryUsage?.max || ''}
-                      onChange={(e) =>
-                        handleGatingFactorChange(ring.ringId, 'avgMemoryUsage.max', e.target.value)
-                      }
-                      placeholder="--"
-                      inputProps={{ min: 0, max: 100 }}
-                    />
-                  </Paper>
-                </Grid>
-                <Grid item xs={12} sm={4}>
-                  <Paper elevation={1} sx={{ p: 2 }}>
-                    <Typography variant="body2" color="text.secondary" gutterBottom>
-                      Avg Disk Free Space Min (%)
-                    </Typography>
-                    <TextField
-                      fullWidth
-                      type="number"
-                      value={ring.gatingFactors.avgDiskFreeSpace?.min || ''}
-                      onChange={(e) =>
-                        handleGatingFactorChange(ring.ringId, 'avgDiskFreeSpace.min', e.target.value)
-                      }
-                      placeholder="--"
-                      inputProps={{ min: 0, max: 100 }}
-                    />
-                  </Paper>
-                </Grid>
-              </Grid>
             </Box>
           </AccordionDetails>
         </Accordion>

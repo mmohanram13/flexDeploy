@@ -55,6 +55,10 @@ class ApiClient {
     return this.get(`/deployments/${deploymentId}`);
   }
 
+  async createDeployment(deploymentData) {
+    return this.post('/deployments', deploymentData);
+  }
+
   async runDeployment(deploymentId) {
     return this.post(`/deployments/${deploymentId}/run`);
   }
@@ -70,6 +74,15 @@ class ApiClient {
 
   async updateRing(ringId, ringData) {
     return this.put(`/rings/${ringId}`, ringData);
+  }
+
+  // Gating Factors
+  async getGatingFactors() {
+    return this.get('/gating-factors');
+  }
+
+  async updateGatingFactors(gatingFactorsData) {
+    return this.put('/gating-factors', gatingFactorsData);
   }
 
   // Dashboard

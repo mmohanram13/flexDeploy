@@ -84,13 +84,38 @@ class Database:
                 ring_id INTEGER PRIMARY KEY,
                 ring_name TEXT NOT NULL,
                 categorization_prompt TEXT NOT NULL,
-                risk_score_min INTEGER,
-                risk_score_max INTEGER,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        
+        # Default gating factors table (template for new deployments)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS default_gating_factors (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
                 avg_cpu_usage_max REAL,
                 avg_memory_usage_max REAL,
                 avg_disk_free_space_min REAL,
+                risk_score_min INTEGER,
+                risk_score_max INTEGER,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        
+        # Deployment gating factors table (per deployment)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS deployment_gating_factors (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                deployment_id TEXT NOT NULL UNIQUE,
+                avg_cpu_usage_max REAL,
+                avg_memory_usage_max REAL,
+                avg_disk_free_space_min REAL,
+                risk_score_min INTEGER,
+                risk_score_max INTEGER,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (deployment_id) REFERENCES deployments(deployment_id)
             )
         """)
         
@@ -100,10 +125,12 @@ class Database:
     def drop_tables(self):
         """Drop all tables (for reset/testing purposes)"""
         cursor = self.conn.cursor()
+        cursor.execute("DROP TABLE IF EXISTS deployment_gating_factors")
         cursor.execute("DROP TABLE IF EXISTS deployment_rings")
         cursor.execute("DROP TABLE IF EXISTS deployments")
         cursor.execute("DROP TABLE IF EXISTS devices")
         cursor.execute("DROP TABLE IF EXISTS rings")
+        cursor.execute("DROP TABLE IF EXISTS default_gating_factors")
         self.conn.commit()
         print("✓ All tables dropped")
     

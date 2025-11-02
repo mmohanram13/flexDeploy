@@ -78,6 +78,49 @@ export default function DeploymentDetail() {
         </Grid>
       </Paper>
 
+      {/* Gating Factors Section */}
+      {details.gatingFactors && (
+        <>
+          <Typography variant="h6" gutterBottom>
+            Gating Factors
+          </Typography>
+          <Paper elevation={2} sx={{ p: 3, mb: 3 }}>
+            <Grid container spacing={2}>
+              <Grid item xs={12} sm={4}>
+                <Typography variant="body2" color="text.secondary">
+                  Avg CPU Usage Max
+                </Typography>
+                <Typography variant="body1">
+                  {details.gatingFactors.avgCpuUsageMax !== null 
+                    ? `${details.gatingFactors.avgCpuUsageMax}%` 
+                    : '--'}
+                </Typography>
+              </Grid>
+              <Grid item xs={12} sm={4}>
+                <Typography variant="body2" color="text.secondary">
+                  Avg Memory Usage Max
+                </Typography>
+                <Typography variant="body1">
+                  {details.gatingFactors.avgMemoryUsageMax !== null 
+                    ? `${details.gatingFactors.avgMemoryUsageMax}%` 
+                    : '--'}
+                </Typography>
+              </Grid>
+              <Grid item xs={12} sm={4}>
+                <Typography variant="body2" color="text.secondary">
+                  Avg Disk Free Space Min
+                </Typography>
+                <Typography variant="body1">
+                  {details.gatingFactors.avgDiskFreeSpaceMin !== null 
+                    ? `${details.gatingFactors.avgDiskFreeSpaceMin}%` 
+                    : '--'}
+                </Typography>
+              </Grid>
+            </Grid>
+          </Paper>
+        </>
+      )}
+
       <Typography variant="h6" gutterBottom>
         Rings
       </Typography>
