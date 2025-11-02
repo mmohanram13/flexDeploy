@@ -63,7 +63,7 @@ FlexDeploy is an intelligent deployment orchestration platform that uses AI to m
             │  Nova Lite v1  │                      │  - Deployments  │
             │                │                      │  - Rings        │
             │  Region:       │                      │  - Gating       │
-            │  us-east-1     │                      │    Factors      │
+            │  us-east-2     │                      │    Factors      │
             └────────────────┘                      └─────────────────┘
                     ▲
                     │
