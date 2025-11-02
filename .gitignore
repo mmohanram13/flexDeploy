@@ -19,3 +19,18 @@ yarn-error.log*
 .pnpm-debug.log*
 dist/
 .DS_Store
+
+# Configuration (may contain sensitive info)
+# Keep config.ini.example for reference
+config.ini
+
+# AWS credentials
+.aws/
+*.pem
+*.key
+
+# Application logs
+server.log
+ui.log
+*.log
+*.db

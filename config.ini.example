@@ -1,0 +1,34 @@
+# FlexDeploy Configuration File - EXAMPLE
+# 
+# Copy this file to config.ini and update with your settings
+# DO NOT commit AWS credentials to this file - use ~/.aws/credentials instead
+
+[aws]
+# AWS SSO Configuration
+# Update these with your organization's SSO details
+sso_start_url = https://superopsglobalhackathon.awsapps.com/start/#
+sso_region = us-east-2
+
+# AWS Bedrock Configuration
+# Region where Bedrock is available (us-east-1 recommended)
+bedrock_region = us-east-1
+
+# Amazon Nova Model IDs
+bedrock_model_pro = us.amazon.nova-pro-v1:0
+bedrock_model_lite = us.amazon.nova-lite-v1:0
+
+# Model Settings
+# Controls default behavior for AI agent responses
+default_max_tokens = 2000
+default_temperature = 0.7
+
+[server]
+# Server Configuration
+# Host and port for the FastAPI server
+host = 0.0.0.0
+port = 8000
+
+[database]
+# Database Configuration
+# SQLite database filename
+db_name = flexdeploy.db
