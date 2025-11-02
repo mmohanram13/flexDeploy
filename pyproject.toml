@@ -1,10 +1,21 @@
 [project]
 name = "flexdeploy"
 version = "0.1.0"
-description = "Add your description here"
+description = "make your deployments reliable"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
+    "aiohttp>=3.13.0",
+    "asyncio>=4.0.0",
+    "mangum>=0.19.0",
     "strands-agents>=1.12.0",
     "strands-agents-tools>=0.2.11",
+    "fastapi>=0.115.0",
+    "uvicorn>=0.32.0",
+    "boto3>=1.35.0",
+    "botocore>=1.35.0",
 ]
+
+[tool.setuptools.packages.find]
+include = ["server*", "simulator*"]
+exclude = ["ui*"]

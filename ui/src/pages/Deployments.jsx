@@ -1,5 +1,4 @@
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
 import {
   Box,
   Typography,
@@ -11,103 +10,167 @@ import {
   TableHead,
   TableRow,
   Chip,
-  IconButton,
   Button,
-  LinearProgress,
+  CircularProgress,
   Dialog,
   DialogTitle,
   DialogContent,
   DialogActions,
   TextField,
+  Radio,
   RadioGroup,
   FormControlLabel,
-  Radio,
-  Stepper,
-  Step,
-  StepLabel,
+  FormControl,
+  FormLabel,
+  Grid,
 } from '@mui/material';
-import {
-  PlayArrow as PlayArrowIcon,
-  Assessment as AssessmentIcon,
-} from '@mui/icons-material';
-import { deployments } from '../data/mockData';
-
-const getStatusColor = (status) => {
-  switch (status) {
-    case 'paused':
-      return 'warning';
-    case 'in-progress':
-      return 'info';
-    case 'complete':
-      return 'success';
-    case 'failed':
-      return 'error';
-    default:
-      return 'default';
-  }
-};
-
-const getStatusIcon = (status) => {
-  switch (status) {
-    case 'paused':
-      return '🟡';
-    case 'in-progress':
-      return '⏳';
-    case 'complete':
-      return '✅';
-    case 'failed':
-      return '❌';
-    default:
-      return '';
-  }
-};
+import { useNavigate } from 'react-router-dom';
+import { apiClient } from '../api/client';
 
 export default function Deployments() {
   const navigate = useNavigate();
-  const [createDialogOpen, setCreateDialogOpen] = useState(false);
-  const [activeStep, setActiveStep] = useState(0);
-  const [deploymentForm, setDeploymentForm] = useState({
-    name: '',
-    packageId: '',
-    targetDevices: 'all',
-    strategy: 'default',
+  const [loading, setLoading] = useState(true);
+  const [deployments, setDeployments] = useState([]);
+  const [openDialog, setOpenDialog] = useState(false);
+  const [newDeployment, setNewDeployment] = useState({
+    deploymentName: '',
+    gatingFactorMode: 'default', // 'default', 'custom', or 'prompt'
+    customGatingFactors: {
+      avgCpuUsageMax: 100,
+      avgMemoryUsageMax: 100,
+      avgDiskFreeSpaceMin: 0,
+    },
+    gatingPrompt: '',
   });
 
-  const steps = ['Deployment Details', 'Configure Strategy', 'Review & Schedule'];
+  useEffect(() => {
+    fetchDeployments();
+  }, []);
 
-  const handleViewDeployment = (deploymentId) => {
-    navigate(`/deployments/${deploymentId}`);
+  const fetchDeployments = async () => {
+    try {
+      const data = await apiClient.getDeployments();
+      setDeployments(data);
+    } catch (error) {
+      console.error('Error fetching deployments:', error);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleNext = () => {
-    setActiveStep((prevStep) => prevStep + 1);
+  const getStatusColor = (status) => {
+    const statusColors = {
+      'Not Started': 'default',
+      'In Progress': 'info',
+      'Completed': 'success',
+      'Failed': 'error',
+      'Stopped': 'warning',
+    };
+    return statusColors[status] || 'default';
   };
 
-  const handleBack = () => {
-    setActiveStep((prevStep) => prevStep - 1);
+  const handleRunDeployment = async (deploymentId) => {
+    try {
+      await apiClient.runDeployment(deploymentId);
+      fetchDeployments();
+    } catch (error) {
+      console.error('Error running deployment:', error);
+    }
   };
 
-  const handleCreateDeployment = () => {
-    // This would normally send data to backend
-    console.log('Creating deployment:', deploymentForm);
-    setCreateDialogOpen(false);
-    setActiveStep(0);
-    setDeploymentForm({
-      name: '',
-      packageId: '',
-      targetDevices: 'all',
-      strategy: 'default',
+  const handleStopDeployment = async (deploymentId) => {
+    try {
+      await apiClient.stopDeployment(deploymentId);
+      fetchDeployments();
+    } catch (error) {
+      console.error('Error stopping deployment:', error);
+    }
+  };
+
+  const handleDeleteDeployment = async (deploymentId) => {
+    if (!window.confirm('Are you sure you want to delete this deployment? This action cannot be undone.')) {
+      return;
+    }
+
+    try {
+      await apiClient.deleteDeployment(deploymentId);
+      fetchDeployments();
+    } catch (error) {
+      console.error('Error deleting deployment:', error);
+      alert('Failed to delete deployment.');
+    }
+  };
+
+  const handleOpenDialog = () => {
+    setOpenDialog(true);
+  };
+
+  const handleCloseDialog = () => {
+    setOpenDialog(false);
+    setNewDeployment({
+      deploymentName: '',
+      gatingFactorMode: 'default',
+      customGatingFactors: {
+        avgCpuUsageMax: 100,
+        avgMemoryUsageMax: 100,
+        avgDiskFreeSpaceMin: 0,
+      },
+      gatingPrompt: '',
     });
   };
+
+  const handleCreateDeployment = async () => {
+    if (!newDeployment.deploymentName) {
+      alert('Please provide a deployment name');
+      return;
+    }
+
+    if (newDeployment.gatingFactorMode === 'prompt' && !newDeployment.gatingPrompt) {
+      alert('Please provide a gating factor prompt');
+      return;
+    }
+
+    try {
+      const deploymentData = {
+        deploymentName: newDeployment.deploymentName,
+        status: 'Not Started',
+        gatingFactorMode: newDeployment.gatingFactorMode,
+      };
+
+      if (newDeployment.gatingFactorMode === 'custom') {
+        deploymentData.customGatingFactors = newDeployment.customGatingFactors;
+      } else if (newDeployment.gatingFactorMode === 'prompt') {
+        deploymentData.gatingPrompt = newDeployment.gatingPrompt;
+      }
+
+      await apiClient.createDeployment(deploymentData);
+      handleCloseDialog();
+      fetchDeployments();
+    } catch (error) {
+      console.error('Error creating deployment:', error);
+      alert('Failed to create deployment.');
+    }
+  };
+
+  if (loading) {
+    return (
+      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
+        <CircularProgress />
+      </Box>
+    );
+  }
 
   return (
     <Box>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-        <Typography variant="h4">Deployments</Typography>
+        <Typography variant="h4">
+          Deployments
+        </Typography>
         <Button
           variant="contained"
-          startIcon={<span>+</span>}
-          onClick={() => setCreateDialogOpen(true)}
+          color="primary"
+          size="large"
+          onClick={handleOpenDialog}
         >
           Create Deployment
         </Button>
@@ -116,70 +179,60 @@ export default function Deployments() {
       <TableContainer component={Paper} elevation={2}>
         <Table>
           <TableHead>
-            <TableRow sx={{ bgcolor: 'grey.100' }}>
-              <TableCell sx={{ fontWeight: 600 }}>Deployment ID</TableCell>
-              <TableCell sx={{ fontWeight: 600 }}>Deployment Name</TableCell>
-              <TableCell sx={{ fontWeight: 600 }}>Status</TableCell>
-              <TableCell sx={{ fontWeight: 600 }}>Progress</TableCell>
-              <TableCell sx={{ fontWeight: 600 }}>Current Ring</TableCell>
-              <TableCell sx={{ fontWeight: 600 }}>Start Time</TableCell>
-              <TableCell sx={{ fontWeight: 600 }}>Actions</TableCell>
+            <TableRow>
+              <TableCell>Deployment ID</TableCell>
+              <TableCell>Deployment Name</TableCell>
+              <TableCell>Status</TableCell>
+              <TableCell align="right">Actions</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
             {deployments.map((deployment) => (
-              <TableRow key={deployment.id} hover>
-                <TableCell>
-                  <Typography
-                    variant="body2"
-                    sx={{ cursor: 'pointer', color: 'primary.main', textDecoration: 'underline' }}
-                    onClick={() => handleViewDeployment(deployment.id)}
-                  >
-                    {deployment.id}
-                  </Typography>
-                </TableCell>
-                <TableCell>{deployment.name}</TableCell>
+              <TableRow key={deployment.deploymentId} hover>
+                <TableCell>{deployment.deploymentId}</TableCell>
+                <TableCell>{deployment.deploymentName}</TableCell>
                 <TableCell>
                   <Chip
-                    label={`${getStatusIcon(deployment.status)} ${deployment.status.charAt(0).toUpperCase() + deployment.status.slice(1)}`}
+                    label={deployment.status}
                     color={getStatusColor(deployment.status)}
                     size="small"
                   />
                 </TableCell>
-                <TableCell>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                    <LinearProgress
-                      variant="determinate"
-                      value={deployment.progress}
-                      sx={{ width: 100 }}
-                    />
-                    <Typography variant="body2">{deployment.progress}%</Typography>
-                  </Box>
-                </TableCell>
-                <TableCell>{deployment.currentRing}</TableCell>
-                <TableCell>
-                  {new Date(deployment.startTime).toLocaleString('en-US', {
-                    year: 'numeric',
-                    month: '2-digit',
-                    day: '2-digit',
-                    hour: '2-digit',
-                    minute: '2-digit',
-                  })}
-                </TableCell>
-                <TableCell>
-                  <Box sx={{ display: 'flex', gap: 1 }}>
-                    {deployment.status === 'paused' && (
-                      <IconButton size="small" color="success">
-                        <PlayArrowIcon />
-                      </IconButton>
+                <TableCell align="right">
+                  <Box sx={{ display: 'flex', gap: 1, justifyContent: 'flex-end' }}>
+                    {deployment.status === 'In Progress' ? (
+                      <Button
+                        variant="outlined"
+                        size="small"
+                        color="error"
+                        onClick={() => handleStopDeployment(deployment.deploymentId)}
+                      >
+                        Stop Deployment
+                      </Button>
+                    ) : (
+                      <Button
+                        variant="outlined"
+                        size="small"
+                        onClick={() => handleRunDeployment(deployment.deploymentId)}
+                      >
+                        Run Deployment
+                      </Button>
                     )}
-                    <IconButton
+                    <Button
+                      variant="contained"
                       size="small"
-                      color="primary"
-                      onClick={() => handleViewDeployment(deployment.id)}
+                      onClick={() => navigate(`/deployments/${deployment.deploymentId}`)}
                     >
-                      <AssessmentIcon />
-                    </IconButton>
+                      View Details
+                    </Button>
+                    <Button
+                      variant="outlined"
+                      size="small"
+                      color="error"
+                      onClick={() => handleDeleteDeployment(deployment.deploymentId)}
+                    >
+                      Delete
+                    </Button>
                   </Box>
                 </TableCell>
               </TableRow>
@@ -189,123 +242,115 @@ export default function Deployments() {
       </TableContainer>
 
       {/* Create Deployment Dialog */}
-      <Dialog
-        open={createDialogOpen}
-        onClose={() => setCreateDialogOpen(false)}
-        maxWidth="md"
-        fullWidth
-      >
+      <Dialog open={openDialog} onClose={handleCloseDialog} maxWidth="md" fullWidth>
         <DialogTitle>Create New Deployment</DialogTitle>
         <DialogContent>
-          <Stepper activeStep={activeStep} sx={{ mb: 4, mt: 2 }}>
-            {steps.map((label) => (
-              <Step key={label}>
-                <StepLabel>{label}</StepLabel>
-              </Step>
-            ))}
-          </Stepper>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3, mt: 2 }}>
+            <TextField
+              label="Deployment Name"
+              value={newDeployment.deploymentName}
+              onChange={(e) => setNewDeployment({ ...newDeployment, deploymentName: e.target.value })}
+              placeholder="Windows Security Update KB5043146"
+              fullWidth
+              required
+            />
 
-          {/* Step 1: Deployment Details */}
-          {activeStep === 0 && (
-            <Box>
-              <TextField
-                fullWidth
-                label="Deployment Name"
-                value={deploymentForm.name}
-                onChange={(e) => setDeploymentForm({ ...deploymentForm, name: e.target.value })}
-                sx={{ mb: 2 }}
-              />
-              <TextField
-                fullWidth
-                label="Package/Patch ID"
-                value={deploymentForm.packageId}
-                onChange={(e) => setDeploymentForm({ ...deploymentForm, packageId: e.target.value })}
-                sx={{ mb: 2 }}
-              />
-              <Typography variant="body1" gutterBottom>
-                Target Devices:
-              </Typography>
+            <FormControl component="fieldset">
+              <FormLabel component="legend">Gating Factors Configuration</FormLabel>
               <RadioGroup
-                value={deploymentForm.targetDevices}
-                onChange={(e) => setDeploymentForm({ ...deploymentForm, targetDevices: e.target.value })}
-              >
-                <FormControlLabel value="all" control={<Radio />} label="All Devices (324)" />
-                <FormControlLabel value="sites" control={<Radio />} label="Specific Sites" />
-                <FormControlLabel value="departments" control={<Radio />} label="Specific Departments" />
-              </RadioGroup>
-            </Box>
-          )}
-
-          {/* Step 2: Configure Strategy */}
-          {activeStep === 1 && (
-            <Box>
-              <Typography variant="body1" gutterBottom>
-                How would you like to configure this deployment?
-              </Typography>
-              <RadioGroup
-                value={deploymentForm.strategy}
-                onChange={(e) => setDeploymentForm({ ...deploymentForm, strategy: e.target.value })}
+                value={newDeployment.gatingFactorMode}
+                onChange={(e) => setNewDeployment({ ...newDeployment, gatingFactorMode: e.target.value })}
               >
                 <FormControlLabel
                   value="default"
                   control={<Radio />}
-                  label="Use Default Rings (AI-assigned cohorts)"
+                  label="Use Default Gating Factors"
                 />
-                <Typography variant="body2" color="text.secondary" sx={{ ml: 4, mb: 2 }}>
-                  Devices will be deployed according to their current ring assignments (5 rings, 324 devices)
-                </Typography>
                 <FormControlLabel
                   value="custom"
                   control={<Radio />}
-                  label="Customize with AI Chat"
+                  label="Provide Custom Gating Factors"
                 />
-                <Typography variant="body2" color="text.secondary" sx={{ ml: 4 }}>
-                  Describe your strategy and AI will configure it
-                </Typography>
+                <FormControlLabel
+                  value="prompt"
+                  control={<Radio />}
+                  label="Generate from Prompt (AI-powered)"
+                />
               </RadioGroup>
-            </Box>
-          )}
+            </FormControl>
 
-          {/* Step 3: Review & Schedule */}
-          {activeStep === 2 && (
-            <Box>
-              <Paper sx={{ p: 2, mb: 2, bgcolor: 'grey.50' }}>
-                <Typography variant="h6" gutterBottom>
-                  Deployment Summary
+            {newDeployment.gatingFactorMode === 'custom' && (
+              <Paper elevation={1} sx={{ p: 2 }}>
+                <Typography variant="subtitle2" gutterBottom>
+                  Custom Gating Factors
                 </Typography>
-                <Typography variant="body2">
-                  <strong>Name:</strong> {deploymentForm.name || 'Not specified'}
-                </Typography>
-                <Typography variant="body2">
-                  <strong>Package:</strong> {deploymentForm.packageId || 'Not specified'}
-                </Typography>
-                <Typography variant="body2">
-                  <strong>Target:</strong> {deploymentForm.targetDevices === 'all' ? '324 devices across 5 rings' : deploymentForm.targetDevices}
-                </Typography>
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                  <TextField
+                    label="Avg CPU Usage Max (%)"
+                    type="number"
+                    value={newDeployment.customGatingFactors.avgCpuUsageMax}
+                    onChange={(e) => setNewDeployment({
+                      ...newDeployment,
+                      customGatingFactors: {
+                        ...newDeployment.customGatingFactors,
+                        avgCpuUsageMax: parseFloat(e.target.value) || 0
+                      }
+                    })}
+                    inputProps={{ min: 0, max: 100 }}
+                    fullWidth
+                  />
+                  <TextField
+                    label="Avg Memory Usage Max (%)"
+                    type="number"
+                    value={newDeployment.customGatingFactors.avgMemoryUsageMax}
+                    onChange={(e) => setNewDeployment({
+                      ...newDeployment,
+                      customGatingFactors: {
+                        ...newDeployment.customGatingFactors,
+                        avgMemoryUsageMax: parseFloat(e.target.value) || 0
+                      }
+                    })}
+                    inputProps={{ min: 0, max: 100 }}
+                    fullWidth
+                  />
+                  <TextField
+                    label="Avg Disk Free Space Min (%)"
+                    type="number"
+                    value={newDeployment.customGatingFactors.avgDiskFreeSpaceMin}
+                    onChange={(e) => setNewDeployment({
+                      ...newDeployment,
+                      customGatingFactors: {
+                        ...newDeployment.customGatingFactors,
+                        avgDiskFreeSpaceMin: parseFloat(e.target.value) || 0
+                      }
+                    })}
+                    inputProps={{ min: 0, max: 100 }}
+                    fullWidth
+                  />
+                </Box>
               </Paper>
+            )}
 
-              <Typography variant="h6" gutterBottom>
-                Schedule:
-              </Typography>
-              <RadioGroup defaultValue="immediate">
-                <FormControlLabel value="immediate" control={<Radio />} label="Start immediately" />
-                <FormControlLabel value="scheduled" control={<Radio />} label="Schedule for:" />
-              </RadioGroup>
-            </Box>
-          )}
+            {newDeployment.gatingFactorMode === 'prompt' && (
+              <TextField
+                label="Gating Factor Prompt"
+                value={newDeployment.gatingPrompt}
+                onChange={(e) => setNewDeployment({ ...newDeployment, gatingPrompt: e.target.value })}
+                placeholder="e.g., 'Only proceed to next ring if average CPU usage is below 60% and memory usage is below 70%'"
+                multiline
+                rows={3}
+                fullWidth
+                required
+                helperText="Describe your desired gating criteria in natural language. AI will analyze device metrics against this prompt to determine whether to proceed to the next ring."
+              />
+            )}
+          </Box>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setCreateDialogOpen(false)}>Cancel</Button>
-          {activeStep > 0 && <Button onClick={handleBack}>Back</Button>}
-          {activeStep < steps.length - 1 ? (
-            <Button variant="contained" onClick={handleNext}>
-              Next
-            </Button>
-          ) : (
-            <Button variant="contained" onClick={handleCreateDeployment}>
-              Create Deployment
-            </Button>
-          )}
+          <Button onClick={handleCloseDialog}>Cancel</Button>
+          <Button onClick={handleCreateDeployment} variant="contained" color="primary">
+            Create
+          </Button>
         </DialogActions>
       </Dialog>
     </Box>
