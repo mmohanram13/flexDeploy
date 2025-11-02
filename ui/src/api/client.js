@@ -6,39 +6,64 @@ const API_BASE_URL = 'http://localhost:8000/api';
 
 class ApiClient {
   async get(endpoint) {
-    const response = await fetch(`${API_BASE_URL}${endpoint}`);
-    if (!response.ok) {
-      throw new Error(`API error: ${response.statusText}`);
+    try {
+      const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+        signal: AbortSignal.timeout(10000), // 10 second timeout
+      });
+      if (!response.ok) {
+        throw new Error(`API error: ${response.statusText}`);
+      }
+      return response.json();
+    } catch (error) {
+      if (error.name === 'TimeoutError' || error.message.includes('fetch')) {
+        throw new Error('Server not reachable. Please check if the server is running.');
+      }
+      throw error;
     }
-    return response.json();
   }
 
   async post(endpoint, data = {}) {
-    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(data),
-    });
-    if (!response.ok) {
-      throw new Error(`API error: ${response.statusText}`);
+    try {
+      const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data),
+        signal: AbortSignal.timeout(30000), // 30 second timeout for AI operations
+      });
+      if (!response.ok) {
+        throw new Error(`API error: ${response.statusText}`);
+      }
+      return response.json();
+    } catch (error) {
+      if (error.name === 'TimeoutError' || error.message.includes('fetch')) {
+        throw new Error('Server not reachable. Please check if the server is running.');
+      }
+      throw error;
     }
-    return response.json();
   }
 
   async put(endpoint, data) {
-    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(data),
-    });
-    if (!response.ok) {
-      throw new Error(`API error: ${response.statusText}`);
+    try {
+      const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data),
+        signal: AbortSignal.timeout(10000), // 10 second timeout
+      });
+      if (!response.ok) {
+        throw new Error(`API error: ${response.statusText}`);
+      }
+      return response.json();
+    } catch (error) {
+      if (error.name === 'TimeoutError' || error.message.includes('fetch')) {
+        throw new Error('Server not reachable. Please check if the server is running.');
+      }
+      throw error;
     }
-    return response.json();
   }
 
   // Devices
@@ -92,6 +117,30 @@ class ApiClient {
 
   async getDeviceDistribution() {
     return this.get('/dashboard/device-distribution');
+  }
+
+  // AI Agents
+  async aiCategorizeDevices(deviceIds = null) {
+    return this.post('/ai/categorize-devices', {
+      deviceIds: deviceIds,
+    });
+  }
+
+  async aiAnalyzeFailure(deploymentId, ringName) {
+    return this.post('/ai/analyze-failure', {
+      deploymentId: deploymentId,
+      ringName: ringName,
+    });
+  }
+
+  async aiParseGatingFactors(naturalLanguageInput) {
+    return this.post('/ai/gating-factors', {
+      naturalLanguageInput: naturalLanguageInput,
+    });
+  }
+
+  async aiValidateGatingFactors(gatingFactors) {
+    return this.post('/ai/validate-gating-factors', gatingFactors);
   }
 }
 
