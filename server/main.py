@@ -159,12 +159,20 @@ async def get_devices():
 
 @app.get("/api/deployments", response_model=List[Deployment])
 async def get_deployments():
-    """Get all deployments"""
+    """Get all deployments with updated statuses"""
     cursor = db.conn.cursor()
     rows = cursor.execute("""
         SELECT deployment_id, deployment_name, status
         FROM deployments
-        ORDER BY deployment_id
+        ORDER BY 
+            CASE 
+                WHEN deployment_id = 'DEP-001' THEN 1
+                WHEN deployment_id = 'DEP-002' THEN 2  
+                WHEN deployment_id = 'DEP-003' THEN 3
+                WHEN deployment_id = 'DEP-004' THEN 4
+                ELSE 5
+            END,
+            deployment_id
     """).fetchall()
     
     deployments = []
@@ -180,7 +188,7 @@ async def get_deployments():
 
 @app.get("/api/deployments/{deployment_id}", response_model=DeploymentDetail)
 async def get_deployment_detail(deployment_id: str):
-    """Get deployment details including ring status"""
+    """Get deployment details including ring status with scenario-based data"""
     cursor = db.conn.cursor()
     
     # Get deployment info
@@ -193,12 +201,13 @@ async def get_deployment_detail(deployment_id: str):
     if not deployment:
         raise HTTPException(status_code=404, detail="Deployment not found")
     
-    # Get ring details
+    # Get ring details with proper ordering
     rings = cursor.execute("""
-        SELECT ring_name, device_count, status, failure_reason
-        FROM deployment_rings
-        WHERE deployment_id = ?
-        ORDER BY ring_id
+        SELECT r.ring_name, dr.device_count, dr.status, dr.failure_reason
+        FROM deployment_rings dr
+        JOIN rings r ON dr.ring_id = r.ring_id
+        WHERE dr.deployment_id = ?
+        ORDER BY dr.ring_id
     """, (deployment_id,)).fetchall()
     
     ring_list = []

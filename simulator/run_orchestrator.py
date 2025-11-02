@@ -219,7 +219,7 @@ async def _create_app(master: MasterOrchestrator) -> web.Application:
     
     return app
 
-async def _start_http_server(app: web.Application, host: str = "0.0.0.0", port: int = 8000):
+async def _start_http_server(app: web.Application, host: str = "0.0.0.0", port: int = 8005):
     """Start aiohttp server (for EC2, ECS, on-premise)."""
     runner = web.AppRunner(app)
     await runner.setup()
@@ -271,7 +271,7 @@ async def main():
     else:
         print("Orchestrator is running. HTTP API will accept commands. Agents will continue to run until you stop the process (Ctrl+C).")
         # start HTTP API server and block (EC2, ECS, on-premise)
-        await _start_http_server(app, host="0.0.0.0", port=8000)
+        await _start_http_server(app, host="0.0.0.0", port=8005)
 
 # For Lambda: export as handler
 if IS_LAMBDA:

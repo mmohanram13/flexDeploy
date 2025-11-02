@@ -3,7 +3,7 @@ Database models and initialization for FlexDeploy
 """
 import sqlite3
 from pathlib import Path
-from typing import Optional
+from typing import Optional, List, Dict, Any
 
 
 class Database:
@@ -169,6 +169,252 @@ class Database:
         return [dict(row) for row in distribution]
 
 
+# Global database instance
+_db_instance: Optional[Database] = None
+
+
+def get_db() -> Database:
+    """Get or create the global database instance"""
+    global _db_instance
+    if _db_instance is None:
+        _db_instance = Database()
+        _db_instance.connect()
+    return _db_instance
+
+
+def get_all_devices() -> List[Dict[str, Any]]:
+    """Get all devices from the database"""
+    db = get_db()
+    cursor = db.conn.cursor()
+    
+    rows = cursor.execute("""
+        SELECT device_id, device_name, manufacturer, model, os_name, site, department, ring,
+               total_memory, total_storage, network_speed, avg_cpu_usage, avg_memory_usage,
+               avg_disk_space, risk_score, created_at, updated_at
+        FROM devices
+        ORDER BY device_id
+    """).fetchall()
+    
+    devices = []
+    for row in rows:
+        devices.append({
+            "device_id": row[0],
+            "device_name": row[1],
+            "manufacturer": row[2],
+            "model": row[3],
+            "os_name": row[4],
+            "site": row[5],
+            "department": row[6],
+            "ring": row[7],
+            "total_memory": row[8],
+            "total_storage": row[9],
+            "network_speed": row[10],
+            "avg_cpu_usage": row[11],
+            "avg_memory_usage": row[12],
+            "avg_disk_space": row[13],
+            "risk_score": row[14],
+            "created_at": row[15],
+            "updated_at": row[16]
+        })
+    
+    return devices
+
+
+def get_device_by_id(device_id: str) -> Optional[Dict[str, Any]]:
+    """Get a specific device by ID"""
+    db = get_db()
+    cursor = db.conn.cursor()
+    
+    row = cursor.execute("""
+        SELECT device_id, device_name, manufacturer, model, os_name, site, department, ring,
+               total_memory, total_storage, network_speed, avg_cpu_usage, avg_memory_usage,
+               avg_disk_space, risk_score, created_at, updated_at
+        FROM devices
+        WHERE device_id = ?
+    """, (device_id,)).fetchone()
+    
+    if not row:
+        return None
+    
+    return {
+        "device_id": row[0],
+        "device_name": row[1],
+        "manufacturer": row[2],
+        "model": row[3],
+        "os_name": row[4],
+        "site": row[5],
+        "department": row[6],
+        "ring": row[7],
+        "total_memory": row[8],
+        "total_storage": row[9],
+        "network_speed": row[10],
+        "avg_cpu_usage": row[11],
+        "avg_memory_usage": row[12],
+        "avg_disk_space": row[13],
+        "risk_score": row[14],
+        "created_at": row[15],
+        "updated_at": row[16]
+    }
+
+
+def create_device(device_data: Dict[str, Any]) -> Dict[str, Any]:
+    """Create a new device in the database"""
+    db = get_db()
+    cursor = db.conn.cursor()
+    
+    cursor.execute("""
+        INSERT INTO devices (
+            device_id, device_name, manufacturer, model, os_name, site, department, ring,
+            total_memory, total_storage, network_speed, avg_cpu_usage, avg_memory_usage,
+            avg_disk_space, risk_score
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    """, (
+        device_data["device_id"],
+        device_data["device_name"],
+        device_data["manufacturer"],
+        device_data["model"],
+        device_data["os_name"],
+        device_data["site"],
+        device_data["department"],
+        device_data["ring"],
+        device_data["total_memory"],
+        device_data["total_storage"],
+        device_data["network_speed"],
+        device_data["avg_cpu_usage"],
+        device_data["avg_memory_usage"],
+        device_data["avg_disk_space"],
+        device_data["risk_score"]
+    ))
+    
+    db.conn.commit()
+    return get_device_by_id(device_data["device_id"])
+
+
+def update_device(device_id: str, device_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """Update an existing device"""
+    db = get_db()
+    cursor = db.conn.cursor()
+    
+    cursor.execute("""
+        UPDATE devices
+        SET device_name = ?, manufacturer = ?, model = ?, os_name = ?, site = ?,
+            department = ?, ring = ?, total_memory = ?, total_storage = ?,
+            network_speed = ?, avg_cpu_usage = ?, avg_memory_usage = ?,
+            avg_disk_space = ?, risk_score = ?, updated_at = CURRENT_TIMESTAMP
+        WHERE device_id = ?
+    """, (
+        device_data["device_name"],
+        device_data["manufacturer"],
+        device_data["model"],
+        device_data["os_name"],
+        device_data["site"],
+        device_data["department"],
+        device_data["ring"],
+        device_data["total_memory"],
+        device_data["total_storage"],
+        device_data["network_speed"],
+        device_data["avg_cpu_usage"],
+        device_data["avg_memory_usage"],
+        device_data["avg_disk_space"],
+        device_data["risk_score"],
+        device_id
+    ))
+    
+    db.conn.commit()
+    return get_device_by_id(device_id)
+
+
+def get_ring_configurations() -> List[Dict[str, Any]]:
+    """Get all ring configurations"""
+    db = get_db()
+    cursor = db.conn.cursor()
+    
+    rows = cursor.execute("""
+        SELECT ring_id, ring_name, categorization_prompt, created_at, updated_at
+        FROM rings
+        ORDER BY ring_id
+    """).fetchall()
+    
+    rings = []
+    for row in rows:
+        rings.append({
+            "ring_id": row[0],
+            "ring_name": row[1],
+            "categorization_prompt": row[2],
+            "created_at": row[3],
+            "updated_at": row[4]
+        })
+    
+    return rings
+
+
+def get_deployment_status(deployment_id: str) -> Optional[Dict[str, Any]]:
+    """Get deployment status including ring details"""
+    db = get_db()
+    cursor = db.conn.cursor()
+    
+    # Get deployment info
+    deployment = cursor.execute("""
+        SELECT deployment_id, deployment_name, status, created_at, updated_at
+        FROM deployments
+        WHERE deployment_id = ?
+    """, (deployment_id,)).fetchone()
+    
+    if not deployment:
+        return None
+    
+    # Get ring statuses for this deployment
+    rings = cursor.execute("""
+        SELECT ring_id, ring_name, device_count, status, failure_reason
+        FROM deployment_rings
+        WHERE deployment_id = ?
+        ORDER BY ring_id
+    """, (deployment_id,)).fetchall()
+    
+    ring_list = []
+    for ring in rings:
+        ring_list.append({
+            "ring_id": ring[0],
+            "ring_name": ring[1],
+            "device_count": ring[2],
+            "status": ring[3],
+            "failure_reason": ring[4]
+        })
+    
+    return {
+        "deployment_id": deployment[0],
+        "deployment_name": deployment[1],
+        "status": deployment[2],
+        "created_at": deployment[3],
+        "updated_at": deployment[4],
+        "rings": ring_list
+    }
+
+
+def get_all_deployments() -> List[Dict[str, Any]]:
+    """Get all deployments"""
+    db = get_db()
+    cursor = db.conn.cursor()
+    
+    rows = cursor.execute("""
+        SELECT deployment_id, deployment_name, status, created_at, updated_at
+        FROM deployments
+        ORDER BY created_at DESC
+    """).fetchall()
+    
+    deployments = []
+    for row in rows:
+        deployments.append({
+            "deployment_id": row[0],
+            "deployment_name": row[1],
+            "status": row[2],
+            "created_at": row[3],
+            "updated_at": row[4]
+        })
+    
+    return deployments
+
+
 def init_database(db_path: str = "flexdeploy.db", reset: bool = False):
     """Initialize the database"""
     db = Database(db_path)
@@ -179,7 +425,26 @@ def init_database(db_path: str = "flexdeploy.db", reset: bool = False):
     
     db.create_tables()
     
+    # Set the global instance
+    global _db_instance
+    _db_instance = db
+    
     return db
+
+
+# Export list for module imports
+__all__ = [
+    'Database',
+    'init_database',
+    'get_db',
+    'get_all_devices',
+    'get_device_by_id',
+    'create_device',
+    'update_device',
+    'get_ring_configurations',
+    'get_deployment_status',
+    'get_all_deployments'
+]
 
 
 if __name__ == "__main__":

@@ -7,7 +7,6 @@ import random
 import time
 from datetime import datetime
 from typing import Any, Callable, Dict, Optional
-from strands import Agent
 
 from ..common import (
     Message,
@@ -65,36 +64,9 @@ class SlaveAgent:
         self.current_task: Optional[Task] = None
         self.status = "idle"
         self.running = False
-        
-        # Background tasks
-        self._heartbeat_task: Optional[asyncio.Task] = None
-        self._message_task: Optional[asyncio.Task] = None
-        self._device_monitor_task: Optional[asyncio.Task] = None
-        
-        # AWS Strands agent for AI capabilities
-        self.strands_agent: Optional[Agent] = None
-        if config.use_aws_strands:
-            self._initialize_strands_agent()
+        self._task: Optional[asyncio.Task] = None
         
         logger.info(f"Slave agent initialized: {self.slave_id} - Device: {self.device_status.device_name}")
-    
-    def _initialize_strands_agent(self):
-        """Initialize AWS Strands agent for AI capabilities."""
-        try:
-            self.strands_agent = Agent(
-                name=f"slave-{self.slave_id}",
-                instructions=[
-                    "You are a slave agent executing tasks from the master orchestrator.",
-                    "Execute tasks efficiently and report progress.",
-                    "Handle errors gracefully and provide detailed error information.",
-                    "Optimize task execution based on available resources."
-                ],
-                model=self.config.strands_model
-            )
-            logger.info(f"AWS Strands agent initialized for {self.slave_id}")
-        except Exception as e:
-            logger.error(f"Failed to initialize Strands agent: {e}")
-            self.strands_agent = None
     
     def register_task_handler(self, task_type: str, handler: Callable):
         """Register a handler function for a task type."""
@@ -380,11 +352,12 @@ class SlaveAgent:
         logger.error(f"Error reported to master: {error}")
     
     async def _run(self):
+        """Main agent loop."""
         self.running = True
         logger.info(f"[SlaveAgent:{self.slave_id}] started with capabilities={self.capabilities}")
         try:
             while self.running:
-                # send a heartbeat message
+                # Send heartbeat message
                 msg = {
                     "type": "HEARTBEAT",
                     "slave_id": self.slave_id,
@@ -402,58 +375,51 @@ class SlaveAgent:
                         "last_updated": datetime.now().isoformat()
                     }
                 }
-                # best-effort publish
+                
                 try:
                     await self.queue_manager.publish("heartbeat", msg)
                 except Exception:
-                    # ignore queue failures for now
-                    pass
+                    pass  # Ignore queue failures
+                
                 await asyncio.sleep(self.config.slave_heartbeat_interval)
         finally:
             logger.info(f"[SlaveAgent:{self.slave_id}] stopped")
 
     def start_in_background(self):
-        # create a background asyncio task and return it
+        """Create a background asyncio task and return it."""
         loop = asyncio.get_event_loop()
         self._task = loop.create_task(self._run())
         return self._task
 
     async def stop(self):
+        """Stop the slave agent."""
+        logger.info(f"Stopping slave agent {self.slave_id}...")
         self.running = False
         if self._task:
             await self._task
-
-    def _handle_direct_message(self, message):
-        """Handle a message sent directly to this agent."""
-        try:
-            if message.get("type") == "MODIFY_METRICS":
-                self._apply_metric_changes(message.get("changes", {}))
-        except Exception as e:
-            print(f"[SlaveAgent:{self.slave_id}] Error handling message: {e}")
+        self.status = "stopped"
+        logger.info(f"Slave agent {self.slave_id} stopped")
 
     def _apply_metric_changes(self, changes: dict):
         """Apply metric changes as instructed by the master."""
-        print(f"[SlaveAgent:{self.slave_id}] Applying metric changes: {changes}")
+        logger.info(f"[SlaveAgent:{self.slave_id}] Applying metric changes: {changes}")
         
-        # Save original values for logging
         orig_cpu = self.device_status.cpu_usage
         orig_battery = self.device_status.battery_level
         orig_memory = self.device_status.memory_usage
         
-        # Apply CPU change if specified
         if "cpu_change" in changes:
             self.device_status.cpu_usage = min(95.0, self.device_status.cpu_usage + changes["cpu_change"])
         
-        # Apply battery change if specified
         if "battery_change" in changes:
             self.device_status.battery_level = max(5.0, min(100.0, self.device_status.battery_level + changes["battery_change"]))
         
-        # Apply memory change if specified
         if "memory_change" in changes:
             self.device_status.memory_usage = min(90.0, self.device_status.memory_usage + changes["memory_change"])
         
-        # Log the changes
-        print(f"[SlaveAgent:{self.slave_id}] Metrics changed - "
-              f"CPU: {orig_cpu:.1f}% → {self.device_status.cpu_usage:.1f}%, "
-              f"Battery: {orig_battery:.1f}% → {self.device_status.battery_level:.1f}%, "
-              f"Memory: {orig_memory:.1f}% → {self.device_status.memory_usage:.1f}%")
+        logger.info(
+            f"[SlaveAgent:{self.slave_id}] Metrics changed - "
+            f"CPU: {orig_cpu:.1f}% → {self.device_status.cpu_usage:.1f}%, "
+            f"Battery: {orig_battery:.1f}% → {self.device_status.battery_level:.1f}%, "
+            f"Memory: {orig_memory:.1f}% → {self.device_status.memory_usage:.1f}%"
+        )
