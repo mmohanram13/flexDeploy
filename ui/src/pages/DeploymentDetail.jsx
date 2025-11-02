@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Box,
   Typography,
@@ -8,15 +8,31 @@ import {
   AccordionDetails,
   Chip,
   Grid,
+  CircularProgress,
 } from '@mui/material';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import { useParams } from 'react-router-dom';
-import { deployments, deploymentDetails } from '../data/mockData';
+import { apiClient } from '../api/client';
 
 export default function DeploymentDetail() {
   const { id } = useParams();
-  const deployment = deployments.find((d) => d.deploymentId === id);
-  const details = deploymentDetails[id];
+  const [loading, setLoading] = useState(true);
+  const [details, setDetails] = useState(null);
+
+  useEffect(() => {
+    const fetchDeploymentDetail = async () => {
+      try {
+        const data = await apiClient.getDeploymentDetail(id);
+        setDetails(data);
+      } catch (error) {
+        console.error('Error fetching deployment details:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchDeploymentDetail();
+  }, [id]);
 
   const getStatusColor = (status) => {
     const statusColors = {
@@ -29,7 +45,15 @@ export default function DeploymentDetail() {
     return statusColors[status] || 'default';
   };
 
-  if (!deployment || !details) {
+  if (loading) {
+    return (
+      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
+        <CircularProgress />
+      </Box>
+    );
+  }
+
+  if (!details) {
     return (
       <Box>
         <Typography variant="h4">Deployment not found</Typography>
@@ -40,7 +64,7 @@ export default function DeploymentDetail() {
   return (
     <Box>
       <Typography variant="h4" gutterBottom>
-        {deployment.deploymentName}
+        {details.deploymentName}
       </Typography>
 
       <Paper elevation={2} sx={{ p: 3, mb: 3 }}>
@@ -49,17 +73,7 @@ export default function DeploymentDetail() {
             <Typography variant="body2" color="text.secondary">
               Deployment ID
             </Typography>
-            <Typography variant="body1">{deployment.deploymentId}</Typography>
-          </Grid>
-          <Grid item xs={12} sm={6}>
-            <Typography variant="body2" color="text.secondary">
-              Status
-            </Typography>
-            <Chip
-              label={deployment.status}
-              color={getStatusColor(deployment.status)}
-              size="small"
-            />
+            <Typography variant="body1">{details.deploymentId}</Typography>
           </Grid>
         </Grid>
       </Paper>

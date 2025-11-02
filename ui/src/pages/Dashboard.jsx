@@ -1,9 +1,40 @@
-import React from 'react';
-import { Box, Card, CardContent, Typography, Grid, Paper } from '@mui/material';
+import React, { useState, useEffect } from 'react';
+import { Box, Card, CardContent, Typography, Grid, Paper, CircularProgress } from '@mui/material';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
-import { dashboardMetrics, deviceDistributionByRing } from '../data/mockData';
+import { apiClient } from '../api/client';
 
 export default function Dashboard() {
+  const [loading, setLoading] = useState(true);
+  const [dashboardMetrics, setDashboardMetrics] = useState({ totalDevices: 0, totalDeployments: 0, activeRings: 0 });
+  const [deviceDistributionByRing, setDeviceDistributionByRing] = useState([]);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const [metrics, distribution] = await Promise.all([
+          apiClient.getDashboardMetrics(),
+          apiClient.getDeviceDistribution(),
+        ]);
+        setDashboardMetrics(metrics);
+        setDeviceDistributionByRing(distribution);
+      } catch (error) {
+        console.error('Error fetching dashboard data:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+  }, []);
+
+  if (loading) {
+    return (
+      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
+        <CircularProgress />
+      </Box>
+    );
+  }
+
   return (
     <Box>
       <Typography variant="h4" gutterBottom>

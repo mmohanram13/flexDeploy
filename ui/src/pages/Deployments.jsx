@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Box,
   Typography,
@@ -11,12 +11,30 @@ import {
   TableRow,
   Chip,
   Button,
+  CircularProgress,
 } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
-import { deployments } from '../data/mockData';
+import { apiClient } from '../api/client';
 
 export default function Deployments() {
   const navigate = useNavigate();
+  const [loading, setLoading] = useState(true);
+  const [deployments, setDeployments] = useState([]);
+
+  useEffect(() => {
+    fetchDeployments();
+  }, []);
+
+  const fetchDeployments = async () => {
+    try {
+      const data = await apiClient.getDeployments();
+      setDeployments(data);
+    } catch (error) {
+      console.error('Error fetching deployments:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const getStatusColor = (status) => {
     const statusColors = {
@@ -29,15 +47,31 @@ export default function Deployments() {
     return statusColors[status] || 'default';
   };
 
-  const handleRunDeployment = (deploymentId) => {
-    // TODO: Implement deployment run logic
-    console.log('Running deployment:', deploymentId);
+  const handleRunDeployment = async (deploymentId) => {
+    try {
+      await apiClient.runDeployment(deploymentId);
+      fetchDeployments();
+    } catch (error) {
+      console.error('Error running deployment:', error);
+    }
   };
 
-  const handleStopDeployment = (deploymentId) => {
-    // TODO: Implement deployment stop logic
-    console.log('Stopping deployment:', deploymentId);
+  const handleStopDeployment = async (deploymentId) => {
+    try {
+      await apiClient.stopDeployment(deploymentId);
+      fetchDeployments();
+    } catch (error) {
+      console.error('Error stopping deployment:', error);
+    }
   };
+
+  if (loading) {
+    return (
+      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
+        <CircularProgress />
+      </Box>
+    );
+  }
 
   return (
     <Box>

@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   Box,
   Typography,
@@ -12,13 +12,31 @@ import {
   Chip,
   TextField,
   TableSortLabel,
+  CircularProgress,
 } from '@mui/material';
-import { devices } from '../data/mockData';
+import { apiClient } from '../api/client';
 
 export default function Devices() {
+  const [loading, setLoading] = useState(true);
+  const [devices, setDevices] = useState([]);
   const [orderBy, setOrderBy] = useState('deviceId');
   const [order, setOrder] = useState('asc');
   const [searchQuery, setSearchQuery] = useState('');
+
+  useEffect(() => {
+    const fetchDevices = async () => {
+      try {
+        const data = await apiClient.getDevices();
+        setDevices(data);
+      } catch (error) {
+        console.error('Error fetching devices:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchDevices();
+  }, []);
 
   const getChipColor = (riskScore) => {
     if (riskScore >= 71) return 'success';
@@ -67,7 +85,15 @@ export default function Devices() {
 
     // Apply sorting
     return filtered.slice().sort(getComparator(order, orderBy));
-  }, [searchQuery, order, orderBy]);
+  }, [devices, searchQuery, order, orderBy]);
+
+  if (loading) {
+    return (
+      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
+        <CircularProgress />
+      </Box>
+    );
+  }
 
   return (
     <Box>
