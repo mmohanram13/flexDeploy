@@ -8,7 +8,6 @@ import Devices from './pages/Devices';
 import Deployments from './pages/Deployments';
 import DeploymentDetail from './pages/DeploymentDetail';
 import Rings from './pages/Rings';
-import Settings from './pages/Settings';
 
 function App() {
   return (
@@ -22,7 +21,6 @@ function App() {
             <Route path="deployments" element={<Deployments />} />
             <Route path="deployments/:id" element={<DeploymentDetail />} />
             <Route path="rings" element={<Rings />} />
-            <Route path="settings" element={<Settings />} />
           </Route>
         </Routes>
       </Router>

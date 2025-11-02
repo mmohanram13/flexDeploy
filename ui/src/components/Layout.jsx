@@ -10,28 +10,21 @@ import {
   Divider,
   ListItem,
   ListItemButton,
-  ListItemIcon,
   ListItemText,
   Avatar,
   IconButton,
 } from '@mui/material';
 import {
-  Dashboard as DashboardIcon,
-  Computer as ComputerIcon,
-  Rocket as RocketIcon,
-  AlbumOutlined as RingsIcon,
-  Settings as SettingsIcon,
   Menu as MenuIcon,
 } from '@mui/icons-material';
 
 const drawerWidth = 240;
 
 const navigationItems = [
-  { text: 'Dashboard', icon: <DashboardIcon />, path: '/' },
-  { text: 'Devices', icon: <ComputerIcon />, path: '/devices' },
-  { text: 'Deployments', icon: <RocketIcon />, path: '/deployments' },
-  { text: 'Rings', icon: <RingsIcon />, path: '/rings' },
-  { text: 'Settings', icon: <SettingsIcon />, path: '/settings' },
+  { text: 'Dashboard', path: '/' },
+  { text: 'Devices', path: '/devices' },
+  { text: 'Deployments', path: '/deployments' },
+  { text: 'Rings', path: '/rings' },
 ];
 
 export default function Layout() {
@@ -71,9 +64,6 @@ export default function Layout() {
                 },
               }}
             >
-              <ListItemIcon sx={{ color: 'inherit', minWidth: 40 }}>
-                {item.icon}
-              </ListItemIcon>
               <ListItemText primary={item.text} />
             </ListItemButton>
           </ListItem>
