@@ -21,6 +21,7 @@ export default function Rings() {
     avgCpuUsageMax: 100,
     avgMemoryUsageMax: 100,
     avgDiskFreeSpaceMin: 0,
+    riskScoreMax: 100,
   });
 
   useEffect(() => {
@@ -108,10 +109,10 @@ export default function Rings() {
           Default Gating Factors
         </Typography>
         <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-          These gating factors will be applied to all new deployments.
+          These gating factors will be applied to all new deployments. Monitoring frequency: 30 seconds
         </Typography>
         <Grid container spacing={2}>
-          <Grid item xs={12} sm={4}>
+          <Grid item xs={12} sm={3}>
             <Paper elevation={1} sx={{ p: 2 }}>
               <Typography variant="body2" color="text.secondary" gutterBottom>
                 Avg CPU Usage Max (%)
@@ -126,7 +127,7 @@ export default function Rings() {
               />
             </Paper>
           </Grid>
-          <Grid item xs={12} sm={4}>
+          <Grid item xs={12} sm={3}>
             <Paper elevation={1} sx={{ p: 2 }}>
               <Typography variant="body2" color="text.secondary" gutterBottom>
                 Avg Memory Usage Max (%)
@@ -141,7 +142,7 @@ export default function Rings() {
               />
             </Paper>
           </Grid>
-          <Grid item xs={12} sm={4}>
+          <Grid item xs={12} sm={3}>
             <Paper elevation={1} sx={{ p: 2 }}>
               <Typography variant="body2" color="text.secondary" gutterBottom>
                 Avg Disk Free Space Min (%)
@@ -152,6 +153,21 @@ export default function Rings() {
                 value={gatingFactors.avgDiskFreeSpaceMin || ''}
                 onChange={(e) => handleGatingFactorChange('avgDiskFreeSpaceMin', e.target.value)}
                 placeholder="--"
+                inputProps={{ min: 0, max: 100 }}
+              />
+            </Paper>
+          </Grid>
+          <Grid item xs={12} sm={3}>
+            <Paper elevation={1} sx={{ p: 2 }}>
+              <Typography variant="body2" color="text.secondary" gutterBottom>
+                Max Risk Score
+              </Typography>
+              <TextField
+                fullWidth
+                type="number"
+                value={gatingFactors.riskScoreMax || ''}
+                onChange={(e) => handleGatingFactorChange('riskScoreMax', e.target.value)}
+                placeholder="100"
                 inputProps={{ min: 0, max: 100 }}
               />
             </Paper>

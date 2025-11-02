@@ -37,9 +37,9 @@ class Database:
                 site TEXT NOT NULL,
                 department TEXT NOT NULL,
                 ring INTEGER NOT NULL,
-                total_memory TEXT NOT NULL,
-                total_storage TEXT NOT NULL,
-                network_speed TEXT NOT NULL,
+                total_memory INTEGER NOT NULL,
+                total_storage INTEGER NOT NULL,
+                network_speed INTEGER NOT NULL,
                 avg_cpu_usage REAL NOT NULL,
                 avg_memory_usage REAL NOT NULL,
                 avg_disk_space REAL NOT NULL,
@@ -113,6 +113,7 @@ class Database:
                 avg_disk_free_space_min REAL,
                 risk_score_min INTEGER,
                 risk_score_max INTEGER,
+                gating_prompt TEXT,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (deployment_id) REFERENCES deployments(deployment_id)
@@ -120,7 +121,7 @@ class Database:
         """)
         
         self.conn.commit()
-        print("✓ Database tables created successfully")
+        print("[OK] Database tables created successfully")
     
     def drop_tables(self):
         """Drop all tables (for reset/testing purposes)"""
@@ -132,7 +133,7 @@ class Database:
         cursor.execute("DROP TABLE IF EXISTS rings")
         cursor.execute("DROP TABLE IF EXISTS default_gating_factors")
         self.conn.commit()
-        print("✓ All tables dropped")
+        print("[OK] All tables dropped")
     
     def get_dashboard_metrics(self):
         """Calculate dashboard metrics from the database"""
@@ -415,6 +416,16 @@ def get_all_deployments() -> List[Dict[str, Any]]:
     return deployments
 
 
+def populate_default_data(db):
+    """
+    Populate database with default data (rings and gating factors)
+    This function is deprecated - use server.init_data.populate_all_defaults() instead
+    Kept for backward compatibility
+    """
+    from server.init_data import populate_all_defaults
+    populate_all_defaults(db)
+
+
 def init_database(db_path: str = "flexdeploy.db", reset: bool = False):
     """Initialize the database"""
     db = Database(db_path)
@@ -436,6 +447,7 @@ def init_database(db_path: str = "flexdeploy.db", reset: bool = False):
 __all__ = [
     'Database',
     'init_database',
+    'populate_default_data',  # Deprecated - use server.init_data instead
     'get_db',
     'get_all_devices',
     'get_device_by_id',

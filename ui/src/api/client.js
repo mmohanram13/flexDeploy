@@ -33,7 +33,19 @@ class ApiClient {
         signal: AbortSignal.timeout(30000), // 30 second timeout for AI operations
       });
       if (!response.ok) {
-        throw new Error(`API error: ${response.statusText}`);
+        // Try to get detailed error message from response
+        let errorMessage = `API error: ${response.statusText}`;
+        try {
+          const errorData = await response.json();
+          if (errorData.detail) {
+            errorMessage = Array.isArray(errorData.detail) 
+              ? errorData.detail.map(e => `${e.loc.join('.')}: ${e.msg}`).join(', ')
+              : errorData.detail;
+          }
+        } catch (e) {
+          // If we can't parse the error, use the default message
+        }
+        throw new Error(errorMessage);
       }
       return response.json();
     } catch (error) {
@@ -96,6 +108,10 @@ class ApiClient {
 
   async getDeploymentDetail(deploymentId) {
     return this.get(`/deployments/${deploymentId}`);
+  }
+
+  async getDeploymentsStatus() {
+    return this.get('/deployments/status/all');
   }
 
   async createDeployment(deploymentData) {
@@ -163,6 +179,31 @@ class ApiClient {
 
   async aiValidateGatingFactors(gatingFactors) {
     return this.post('/ai/validate-gating-factors', gatingFactors);
+  }
+
+  // Simulator APIs
+  async createDevice(deviceData) {
+    return this.post('/simulator/devices', deviceData);
+  }
+
+  async updateDeviceMetrics(metricsData) {
+    return this.post('/simulator/device-metrics', metricsData);
+  }
+
+  async updateRingMetrics(ringMetricsData) {
+    return this.post('/simulator/ring-metrics', ringMetricsData);
+  }
+
+  async updateDeploymentRingStatus(statusData) {
+    return this.post('/simulator/deployment-status', statusData);
+  }
+
+  async getRingDevices(deploymentId, ringId) {
+    return this.get(`/simulator/deployment/${deploymentId}/ring/${ringId}/devices`);
+  }
+
+  async reinitApplication() {
+    return this.post('/simulator/reinit');
   }
 }
 

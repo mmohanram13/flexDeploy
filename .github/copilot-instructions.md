@@ -39,7 +39,7 @@ Table with columns scrollable horizontally if needed:
 - Average CPU Usage
 - Average Memory Usage
 - Average Disk Space
-- Risk Score (>80% Avg CPU/Memory/Disk Usage - Score 0-30, >50% - Score 31-70, <=50% - Score 71-100 using linear interpolation)
+- Risk Score (>80% Avg CPU/Memory/Disk Usage - Score 71-100 (High Risk - Red), >50% - Score 31-70 (Medium Risk - Yellow), <=50% - Score 0-30 (Low Risk - Green) using linear interpolation)
 
 Deployments:
 
@@ -94,7 +94,7 @@ To run the UI and backend server, always set python virtual environment and then
 ./run_app.sh
 ```
 
-You will servers running as below in port 8000 for server and 5173 for UI.
+You will see servers running as below in port 8000 for server and 5173 for UI.
 Services:
   ✓ Backend:  http://localhost:8000
   ✓ Frontend: http://localhost:5173

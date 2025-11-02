@@ -33,5 +33,5 @@ config.ini
 server.log
 ui.log
 *.log
-*.db
-server/*.db
+*.db*
+server/*.db*

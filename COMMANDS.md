@@ -108,7 +108,7 @@ rm server.log ui.log
 aws sts get-caller-identity --profile <profile_id>
 
 # Test AWS Bedrock access
-aws bedrock list-foundation-models --region us-east-1 --profile <profile_id>
+aws bedrock list-foundation-models --region us-east-2 --profile <profile_id>
 
 # Verify config files
 ls -la config.ini ~/.aws/credentials

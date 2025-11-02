@@ -17,6 +17,7 @@
 - [Configuration](#configuration)
 - [Running the Application](#running-the-application)
 - [AI Agents](#ai-agents)
+- [Simulation](#simulation)
 - [API Documentation](#api-documentation)
 - [Project Structure](#project-structure)
 - [Troubleshooting](#troubleshooting)
@@ -169,7 +170,7 @@ FlexDeploy is an intelligent deployment orchestration platform that uses AI to m
 - **AWS Bedrock Access**: Must be enabled in your account
 - **Model Access**: Amazon Nova Pro and Nova Lite
 - **IAM Permissions**: `bedrock:InvokeModel`
-- **Region**: us-east-1 (recommended for Bedrock)
+- **Region**: us-east-2 (recommended for Bedrock)
 
 ## 🚀 Installation
 
@@ -237,7 +238,7 @@ This creates:
 [aws]
 sso_start_url = https://your-org.awsapps.com/start/#
 sso_region = us-east-2
-bedrock_region = us-east-1
+bedrock_region = us-east-2
 ```
 
 2. Get SSO credentials:
@@ -357,7 +358,7 @@ Output:
 ✓ Database connected
 ✓ Configuration loaded
   - SSO Region: us-east-2
-  - Bedrock Region: us-east-1
+  - Bedrock Region: us-east-2
 ✓ AWS Bedrock agents initialized
   - Credentials from: ~/.aws/credentials
   - Configuration from: config.ini
@@ -485,6 +486,95 @@ curl -X POST http://localhost:8000/api/ai/gating-factors \
 - 50 failure analyses: $0.20
 - 100 gating factor requests: $0.12
 - **Total**: ~$0.72/month
+
+## 🧪 Simulation
+
+FlexDeploy includes a powerful modular simulation system for testing deployment scenarios without affecting real devices.
+
+### Access the Simulator
+
+**Web UI**: Navigate to **http://localhost:5173/simulator**
+
+The simulator provides:
+- **Stress Profiles**: Pre-configured load levels (Low, Normal, High, Critical)
+- **Custom Metrics**: Set specific CPU, memory, disk usage for rings
+- **Status Control**: Manually control deployment ring progression
+- **Real-time View**: See device metrics and risk scores update instantly
+
+### Quick Start
+
+1. Start the server:
+```bash
+./run_app.sh
+```
+
+2. Open the simulator:
+```
+http://localhost:5173/simulator
+```
+
+3. Select a deployment and ring
+
+4. Apply a stress profile or custom metrics
+
+5. View updated devices in the table below
+
+### Stress Profiles
+
+| Level | CPU | Memory | Disk | Use Case |
+|-------|-----|--------|------|----------|
+| Low | 25% | 30% | 20% | Healthy baseline |
+| Normal | 50% | 55% | 45% | Typical operation |
+| High | 75% | 80% | 70% | Heavy load testing |
+| Critical | 95% | 92% | 88% | Failure scenarios |
+
+### API Endpoints
+
+All simulator endpoints are under `/api/simulator`:
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/devices` | Create/update device |
+| POST | `/device-metrics` | Update device metrics |
+| POST | `/ring-metrics` | Update ring metrics |
+| POST | `/deployment-status` | Update ring status |
+| POST | `/stress-profile` | Apply stress profile |
+| GET | `/deployment/{id}/ring/{ringId}/devices` | Get ring devices |
+
+### Example API Usage
+
+```bash
+# Apply stress profile
+curl -X POST http://localhost:8000/api/simulator/stress-profile \
+  -H "Content-Type: application/json" \
+  -d '{
+    "deploymentId": "DEP-001",
+    "ringId": 0,
+    "stressLevel": "high"
+  }'
+
+# Update ring metrics
+curl -X POST http://localhost:8000/api/simulator/ring-metrics \
+  -H "Content-Type: application/json" \
+  -d '{
+    "deploymentId": "DEP-001",
+    "ringId": 0,
+    "avgCpuUsage": 85.0,
+    "avgMemoryUsage": 90.0,
+    "avgDiskSpace": 75.0
+  }'
+```
+
+### Architecture
+
+The simulator is modularly structured:
+- **UI**: `ui/src/pages/Simulator.jsx` - React interface
+- **Service**: `server/simulator_service.py` - Business logic
+- **Endpoints**: `server/main.py` - API routes
+
+### Detailed Documentation
+
+For complete simulator documentation, see [SIMULATOR.md](SIMULATOR.md)
 
 ## 📚 API Documentation
 
@@ -681,7 +771,7 @@ python test_bedrock_agents.py
 aws sts get-caller-identity
 
 # Verify Bedrock access
-aws bedrock list-foundation-models --region us-east-1
+aws bedrock list-foundation-models --region us-east-2
 ```
 
 **Problem**: "AccessDeniedException"
@@ -752,7 +842,7 @@ python server/migrate_data.py
      "Effect": "Allow",
      "Action": ["bedrock:InvokeModel"],
      "Resource": [
-       "arn:aws:bedrock:us-east-1::foundation-model/us.amazon.nova-*"
+       "arn:aws:bedrock:us-east-2::foundation-model/us.amazon.nova-*"
      ]
    }
    ```
@@ -774,7 +864,7 @@ For production, use IAM roles instead of credentials:
 ```python
 # server/bedrock_agents.py
 # No credentials needed - uses IAM role automatically
-boto3.client('bedrock-runtime', region_name='us-east-1')
+boto3.client('bedrock-runtime', region_name='us-east-2')
 ```
 
 Deploy on:

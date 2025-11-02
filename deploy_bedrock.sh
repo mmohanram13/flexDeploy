@@ -31,7 +31,7 @@ if [ ! -f "$CREDENTIALS_PATH" ]; then
     echo "     [default]"
     echo "     aws_access_key_id = YOUR_ACCESS_KEY"
     echo "     aws_secret_access_key = YOUR_SECRET_KEY"
-    echo "     region = us-east-1"
+    echo "     region = us-east-2"
     echo ""
     exit 1
 fi
@@ -42,7 +42,7 @@ echo ""
 # Test AWS credentials
 echo "Step 2: Verifying AWS Access..."
 if command -v aws &> /dev/null; then
-    if aws sts get-caller-identity --region us-east-1 &>/dev/null; then
+    if aws sts get-caller-identity --region us-east-2 &>/dev/null; then
         ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
         echo -e "${GREEN}✓ AWS credentials verified (Account: $ACCOUNT_ID)${NC}"
     else
@@ -64,7 +64,7 @@ from botocore.exceptions import ClientError, NoCredentialsError
 try:
     # Create session with the correct profile
     session = boto3.Session(profile_name='942237908630_AdministratorAccess')
-    client = session.client('bedrock-runtime', region_name='us-east-1')
+    client = session.client('bedrock-runtime', region_name='us-east-2')
     
     # Try a minimal API call
     response = client.converse(
@@ -95,7 +95,7 @@ except ClientError as e:
         print("3. Ensure IAM user has bedrock:InvokeModel permission")
     elif error_code == 'ResourceNotFoundException':
         print("\033[0;31m❌ Amazon Nova models not available in your region\033[0m")
-        print("Please ensure you're using us-east-1 region")
+        print("Please ensure you're using us-east-2 region")
     else:
         print(f"\033[0;31m❌ AWS Bedrock error: {error_code}\033[0m")
         print(f"Message: {e.response['Error']['Message']}")

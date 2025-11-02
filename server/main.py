@@ -6,6 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from typing import List, Optional
 from pydantic import BaseModel
 import uvicorn
+import asyncio
 
 from server.database import Database
 from server.config import get_config
@@ -15,6 +16,9 @@ from server.bedrock_agents import (
     DeploymentFailureAgent,
     GatingFactorAgent
 )
+from server.simulator_service import SimulatorService
+from server.deployment_scheduler import DeploymentScheduler
+from server.database import populate_default_data
 
 
 # Initialize FastAPI app
@@ -41,23 +45,55 @@ ring_categorization_agent = None
 deployment_failure_agent = None
 gating_factor_agent = None
 
+# Initialize simulator service
+simulator_service = None
+
+# Initialize deployment scheduler
+deployment_scheduler = None
+
 
 @app.on_event("startup")
 async def startup_event():
     """Connect to database on startup"""
-    global bedrock_service, ring_categorization_agent, deployment_failure_agent, gating_factor_agent
+    global bedrock_service, ring_categorization_agent, deployment_failure_agent, gating_factor_agent, simulator_service, deployment_scheduler
     
     db.connect()
-    print("✓ Database connected")
+    print("[OK] Database connected")
+    
+    # Create tables if they don't exist
+    db.create_tables()
+    print("[OK] Database tables verified/created")
+    
+    # Populate default data if database is empty
+    populate_default_data(db)
+    
+    # Check if there are any devices/deployments and provide guidance
+    cursor = db.conn.cursor()
+    device_count = cursor.execute("SELECT COUNT(*) FROM devices").fetchone()[0]
+    deployment_count = cursor.execute("SELECT COUNT(*) FROM deployments").fetchone()[0]
+    
+    if device_count == 0 and deployment_count == 0:
+        print("\n[INFO] No sample data found in database")
+        print("  To populate with demo data, run:")
+        print("    python server/migrate_data.py")
+        print("  Or use the Simulator UI to create devices/deployments\n")
+    
+    # Initialize simulator service
+    simulator_service = SimulatorService(db.conn)
+    print("[OK] Simulator service initialized")
+    
+    # Initialize deployment scheduler
+    deployment_scheduler = DeploymentScheduler(db.conn, simulator_service)
+    print("[OK] Deployment scheduler initialized")
     
     # Load configuration
     try:
         config = get_config()
-        print(f"✓ Configuration loaded")
+        print(f"[OK] Configuration loaded")
         print(f"  - SSO Region: {config.sso_region}")
         print(f"  - Bedrock Region: {config.bedrock_region}")
     except Exception as e:
-        print(f"⚠ Warning: Could not load config.ini: {e}")
+        print(f"[WARN] Warning: Could not load config.ini: {e}")
         print("  Using default configuration")
     
     # Initialize Bedrock agents
@@ -66,11 +102,11 @@ async def startup_event():
         ring_categorization_agent = RingCategorizationAgent(bedrock_service, db.conn)
         deployment_failure_agent = DeploymentFailureAgent(bedrock_service)
         gating_factor_agent = GatingFactorAgent(bedrock_service)
-        print("✓ AWS Bedrock agents initialized")
+        print("[OK] AWS Bedrock agents initialized")
         print(f"  - Credentials from: ~/.aws/credentials")
         print(f"  - Configuration from: config.ini")
     except Exception as e:
-        print(f"⚠ Warning: Could not initialize Bedrock agents: {e}")
+        print(f"[WARN] Warning: Could not initialize Bedrock agents: {e}")
         print("  AI features will be disabled.")
         print("  Check:")
         print("    1. AWS credentials in ~/.aws/credentials (aws_access_key_id, aws_secret_access_key, aws_session_token)")
@@ -80,8 +116,13 @@ async def startup_event():
 @app.on_event("shutdown")
 async def shutdown_event():
     """Close database connection on shutdown"""
+    # Stop all active deployments
+    if deployment_scheduler:
+        for deployment_id in list(deployment_scheduler.active_deployments.keys()):
+            await deployment_scheduler.stop_deployment(deployment_id)
+    
     db.close()
-    print("✓ Database connection closed")
+    print("[OK] Database connection closed")
 
 
 # Pydantic models for request/response
@@ -200,9 +241,9 @@ async def get_devices():
             "site": row[5],
             "department": row[6],
             "ring": row[7],
-            "totalMemory": row[8],
-            "totalStorage": row[9],
-            "networkSpeed": row[10],
+            "totalMemory": f"{row[8]} GB",
+            "totalStorage": f"{row[9]} GB",
+            "networkSpeed": f"{row[10]} Mbps",
             "avgCpuUsage": row[11],
             "avgMemoryUsage": row[12],
             "avgDiskSpace": row[13],
@@ -277,7 +318,7 @@ async def get_deployment_detail(deployment_id: str):
     # Get deployment-specific gating factors
     gating_factors_row = cursor.execute("""
         SELECT avg_cpu_usage_max, avg_memory_usage_max, avg_disk_free_space_min,
-               risk_score_min, risk_score_max
+               risk_score_min, risk_score_max, gating_prompt
         FROM deployment_gating_factors
         WHERE deployment_id = ?
     """, (deployment_id,)).fetchone()
@@ -290,13 +331,79 @@ async def get_deployment_detail(deployment_id: str):
             "avgDiskFreeSpaceMin": gating_factors_row[2],
             "riskScoreMin": gating_factors_row[3],
             "riskScoreMax": gating_factors_row[4],
+            "gatingPrompt": gating_factors_row[5],
         }
+    
+    # Get scheduler timer info if deployment is in progress
+    timer_info = None
+    if deployment[2] == 'In Progress':
+        timer_info = deployment_scheduler.get_deployment_timer_info(deployment_id)
     
     return {
         "deploymentId": deployment[0],
         "deploymentName": deployment[1],
+        "status": deployment[2],
         "rings": ring_list,
         "gatingFactors": gating_factors,
+        "timerInfo": timer_info,
+    }
+
+
+@app.get("/api/deployments/status/all")
+async def get_all_deployments_status():
+    """Get status updates for all deployments - optimized for polling"""
+    cursor = db.conn.cursor()
+    
+    # Get all deployments
+    deployments_rows = cursor.execute("""
+        SELECT deployment_id, deployment_name, status, updated_at
+        FROM deployments
+        ORDER BY 
+            CASE 
+                WHEN deployment_id = 'DEP-001' THEN 1
+                WHEN deployment_id = 'DEP-002' THEN 2  
+                WHEN deployment_id = 'DEP-003' THEN 3
+                WHEN deployment_id = 'DEP-004' THEN 4
+                ELSE 5
+            END,
+            deployment_id
+    """).fetchall()
+    
+    deployments = []
+    for dep_row in deployments_rows:
+        deployment_id = dep_row[0]
+        
+        # Get ring status for this deployment
+        rings_rows = cursor.execute("""
+            SELECT dr.ring_id, r.ring_name, dr.device_count, dr.status, dr.failure_reason, dr.updated_at
+            FROM deployment_rings dr
+            JOIN rings r ON dr.ring_id = r.ring_id
+            WHERE dr.deployment_id = ?
+            ORDER BY dr.ring_id
+        """, (deployment_id,)).fetchall()
+        
+        rings = []
+        for ring_row in rings_rows:
+            rings.append({
+                "ringId": ring_row[0],
+                "ringName": ring_row[1],
+                "deviceCount": ring_row[2],
+                "status": ring_row[3],
+                "failureReason": ring_row[4],
+                "updatedAt": ring_row[5]
+            })
+        
+        deployments.append({
+            "deploymentId": dep_row[0],
+            "deploymentName": dep_row[1],
+            "status": dep_row[2],
+            "updatedAt": dep_row[3],
+            "rings": rings
+        })
+    
+    return {
+        "deployments": deployments,
+        "timestamp": cursor.execute("SELECT CURRENT_TIMESTAMP").fetchone()[0]
     }
 
 
@@ -470,6 +577,7 @@ async def create_deployment(request: CreateDeploymentRequest):
     
     # Determine gating factors based on mode
     gating_factors = None
+    gating_prompt_text = None
     
     if request.gatingFactorMode == 'default':
         # Get default gating factors
@@ -514,15 +622,16 @@ async def create_deployment(request: CreateDeploymentRequest):
         
         # For now, use conservative defaults based on the prompt
         gating_factors = (80.0, 80.0, 20.0, 0, 100)
+        gating_prompt_text = request.gatingPrompt
     
     # Insert gating factors for deployment
     if gating_factors:
         cursor.execute("""
             INSERT INTO deployment_gating_factors 
             (deployment_id, avg_cpu_usage_max, avg_memory_usage_max, avg_disk_free_space_min,
-             risk_score_min, risk_score_max)
-            VALUES (?, ?, ?, ?, ?, ?)
-        """, (new_id, *gating_factors))
+             risk_score_min, risk_score_max, gating_prompt)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        """, (new_id, *gating_factors, gating_prompt_text))
     
     # Create deployment rings for all rings
     rings = cursor.execute("""
@@ -559,7 +668,7 @@ async def create_deployment(request: CreateDeploymentRequest):
 
 @app.post("/api/deployments/{deployment_id}/run")
 async def run_deployment(deployment_id: str):
-    """Start a deployment"""
+    """Start a deployment with automatic progression through rings"""
     cursor = db.conn.cursor()
     
     # Update deployment status
@@ -572,15 +681,30 @@ async def run_deployment(deployment_id: str):
     if cursor.rowcount == 0:
         raise HTTPException(status_code=404, detail="Deployment not found")
     
+    # Reset all rings to 'Not Started' status
+    cursor.execute("""
+        UPDATE deployment_rings
+        SET status = 'Not Started',
+            failure_reason = NULL,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE deployment_id = ?
+    """, (deployment_id,))
+    
     db.conn.commit()
+    
+    # Start the deployment scheduler
+    await deployment_scheduler.start_deployment(deployment_id)
     
     return {"message": "Deployment started successfully"}
 
 
 @app.post("/api/deployments/{deployment_id}/stop")
 async def stop_deployment(deployment_id: str):
-    """Stop a deployment"""
+    """Stop a deployment and cancel automatic progression"""
     cursor = db.conn.cursor()
+    
+    # Stop the deployment scheduler
+    await deployment_scheduler.stop_deployment(deployment_id)
     
     # Update deployment status
     cursor.execute("""
@@ -592,6 +716,14 @@ async def stop_deployment(deployment_id: str):
     if cursor.rowcount == 0:
         raise HTTPException(status_code=404, detail="Deployment not found")
     
+    # Stop all in-progress rings
+    cursor.execute("""
+        UPDATE deployment_rings
+        SET status = 'Stopped',
+            updated_at = CURRENT_TIMESTAMP
+        WHERE deployment_id = ? AND status = 'In Progress'
+    """, (deployment_id,))
+    
     db.conn.commit()
     
     return {"message": "Deployment stopped successfully"}
@@ -601,6 +733,9 @@ async def stop_deployment(deployment_id: str):
 async def delete_deployment(deployment_id: str):
     """Delete a deployment and its related data"""
     cursor = db.conn.cursor()
+    
+    # Stop the deployment scheduler if running
+    await deployment_scheduler.stop_deployment(deployment_id)
     
     # Check if deployment exists
     deployment = cursor.execute("""
@@ -923,6 +1058,268 @@ async def ai_validate_gating_factors(gating_factors: GatingFactors):
             status_code=500,
             detail=f"AI validation failed: {str(e)}"
         )
+
+
+# ==================== SIMULATION APIs ====================
+
+class DeviceCreate(BaseModel):
+    """Model for creating a device via API"""
+    deviceId: str
+    deviceName: str
+    manufacturer: str
+    model: str
+    osName: str
+    site: str
+    department: str
+    ring: Optional[int] = None
+    totalMemory: int  # in GB
+    totalStorage: int  # in GB
+    networkSpeed: int  # in Mbps
+    avgCpuUsage: float = 50.0
+    avgMemoryUsage: float = 50.0
+    avgDiskSpace: float = 50.0
+    riskScore: Optional[int] = None
+
+
+class DeviceMetrics(BaseModel):
+    """Model for updating device metrics"""
+    deviceId: str
+    avgCpuUsage: float
+    avgMemoryUsage: float
+    avgDiskSpace: float
+    riskScore: Optional[int] = None
+
+
+class RingMetrics(BaseModel):
+    """Model for updating metrics for all devices in a ring"""
+    ringId: int
+    deploymentId: str
+    avgCpuUsage: Optional[float] = None
+    avgMemoryUsage: Optional[float] = None
+    avgDiskSpace: Optional[float] = None
+    riskScore: Optional[int] = None
+
+
+class DeploymentRingStatus(BaseModel):
+    """Model for updating deployment ring status"""
+    deploymentId: str
+    ringId: int
+    status: str  # Not Started, In Progress, Completed, Failed, Stopped
+    failureReason: Optional[str] = None
+
+
+@app.post("/api/simulator/devices")
+async def create_device(device: DeviceCreate):
+    """
+    Create or update a device with metadata.
+    Used by simulator to add devices to the system.
+    If ring is not provided, device will be assigned to ring 0 by default.
+    """
+    try:
+        result = simulator_service.create_or_update_device(
+            device_id=device.deviceId,
+            device_name=device.deviceName,
+            manufacturer=device.manufacturer,
+            model=device.model,
+            os_name=device.osName,
+            site=device.site,
+            department=device.department,
+            ring=device.ring if device.ring is not None else 0,  # Default to ring 0 if not provided
+            total_memory=device.totalMemory,
+            total_storage=device.totalStorage,
+            network_speed=device.networkSpeed,
+            avg_cpu_usage=device.avgCpuUsage,
+            avg_memory_usage=device.avgMemoryUsage,
+            avg_disk_space=device.avgDiskSpace,
+            risk_score=device.riskScore
+        )
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to create device: {str(e)}")
+
+
+@app.post("/api/simulator/device-metrics")
+async def update_device_metrics_endpoint(metrics: DeviceMetrics):
+    """
+    Update CPU, memory, and disk usage for a specific device.
+    Used by simulator to update device metrics dynamically.
+    """
+    try:
+        result = simulator_service.update_device_metrics(
+            device_id=metrics.deviceId,
+            avg_cpu_usage=metrics.avgCpuUsage,
+            avg_memory_usage=metrics.avgMemoryUsage,
+            avg_disk_space=metrics.avgDiskSpace,
+            risk_score=metrics.riskScore
+        )
+        
+        if result["status"] == "error":
+            raise HTTPException(status_code=404, detail=result["message"])
+        
+        return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to update metrics: {str(e)}")
+
+
+@app.post("/api/simulator/ring-metrics")
+async def update_ring_metrics_endpoint(ring_metrics: RingMetrics):
+    """
+    Update metrics for all devices in a specific ring.
+    Used by simulator to set average metrics for ring simulation.
+    """
+    try:
+        result = simulator_service.update_ring_metrics(
+            ring_id=ring_metrics.ringId,
+            deployment_id=ring_metrics.deploymentId,
+            avg_cpu_usage=ring_metrics.avgCpuUsage,
+            avg_memory_usage=ring_metrics.avgMemoryUsage,
+            avg_disk_space=ring_metrics.avgDiskSpace,
+            risk_score=ring_metrics.riskScore
+        )
+        
+        if result["status"] == "error":
+            raise HTTPException(status_code=404, detail=result["message"])
+        
+        return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to update ring metrics: {str(e)}")
+
+
+@app.post("/api/simulator/deployment-status")
+async def update_deployment_ring_status_endpoint(status_update: DeploymentRingStatus):
+    """
+    Update the status of a specific ring in a deployment.
+    Used by simulator to control deployment progression.
+    If status is 'In Progress', automatically checks gating factors.
+    """
+    try:
+        result = simulator_service.update_deployment_ring_status(
+            deployment_id=status_update.deploymentId,
+            ring_id=status_update.ringId,
+            status=status_update.status,
+            failure_reason=status_update.failureReason
+        )
+        
+        if result["status"] == "error":
+            raise HTTPException(status_code=404, detail=result["message"])
+        
+        # If ring is set to In Progress, check gating factors
+        if status_update.status == 'In Progress':
+            gating_check = simulator_service.check_gating_factors(
+                deployment_id=status_update.deploymentId,
+                ring_id=status_update.ringId
+            )
+            
+            if gating_check["status"] == "failed":
+                result["gatingFactorViolation"] = True
+                result["failureReason"] = gating_check["failureReason"]
+        
+        return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to update deployment status: {str(e)}")
+
+
+@app.post("/api/simulator/check-gating-factors")
+async def check_gating_factors_endpoint(request: dict):
+    """
+    Manually check gating factors for a ring in a deployment.
+    Returns violation details without automatically failing.
+    """
+    try:
+        deployment_id = request.get("deploymentId")
+        ring_id = request.get("ringId")
+        
+        if not deployment_id or ring_id is None:
+            raise HTTPException(status_code=400, detail="deploymentId and ringId are required")
+        
+        result = simulator_service.check_gating_factors(
+            deployment_id=deployment_id,
+            ring_id=ring_id
+        )
+        
+        return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to check gating factors: {str(e)}")
+
+
+@app.get("/api/simulator/deployment/{deployment_id}/ring/{ring_id}/devices")
+async def get_ring_devices_endpoint(deployment_id: str, ring_id: int):
+    """
+    Get all devices in a specific ring for simulation purposes.
+    Returns device details including current metrics.
+    """
+    try:
+        devices = simulator_service.get_ring_devices(deployment_id, ring_id)
+        return {
+            "deploymentId": deployment_id,
+            "ringId": ring_id,
+            "devices": devices
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to get ring devices: {str(e)}")
+
+
+@app.post("/api/simulator/stress-profile")
+async def apply_stress_profile(request: dict):
+    """
+    Apply a pre-configured stress profile to a ring.
+    Stress levels: low, normal, high, critical
+    """
+    try:
+        deployment_id = request.get("deploymentId")
+        ring_id = request.get("ringId")
+        stress_level = request.get("stressLevel", "normal")
+        
+        result = simulator_service.apply_stress_profile(
+            deployment_id=deployment_id,
+            ring_id=ring_id,
+            stress_level=stress_level
+        )
+        
+        if result["status"] == "error":
+            raise HTTPException(status_code=404, detail=result["message"])
+        
+        return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to apply stress profile: {str(e)}")
+
+
+@app.post("/api/simulator/reinit")
+async def reinit_application():
+    """
+    Reinitialize the application by deleting all devices and deployments.
+    Used by simulator to reset the system to a clean state.
+    """
+    try:
+        cursor = db.conn.cursor()
+        
+        # Delete all deployment-related data
+        cursor.execute("DELETE FROM deployment_gating_factors")
+        cursor.execute("DELETE FROM deployment_rings")
+        cursor.execute("DELETE FROM deployments")
+        
+        # Delete all devices
+        cursor.execute("DELETE FROM devices")
+        
+        db.conn.commit()
+        
+        return {
+            "status": "success",
+            "message": "Application reinitialized successfully. All devices and deployments have been deleted."
+        }
+    except Exception as e:
+        db.conn.rollback()
+        raise HTTPException(status_code=500, detail=f"Failed to reinitialize application: {str(e)}")
 
 
 def main():

@@ -19,6 +19,7 @@ import Devices from './pages/Devices';
 import Deployments from './pages/Deployments';
 import DeploymentDetail from './pages/DeploymentDetail';
 import Rings from './pages/Rings';
+import Simulator from './pages/Simulator';
 
 function App() {
   const [serverDown, setServerDown] = useState(false);
@@ -132,6 +133,8 @@ function App() {
             <Route path="deployments/:id" element={<DeploymentDetail />} />
             <Route path="rings" element={<Rings />} />
           </Route>
+          {/* Standalone simulator page without layout */}
+          <Route path="/simulator" element={<Simulator />} />
         </Routes>
       </Router>
     </ThemeProvider>
