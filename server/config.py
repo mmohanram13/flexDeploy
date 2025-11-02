@@ -51,7 +51,7 @@ class Config:
     @property
     def bedrock_region(self) -> str:
         """Get AWS Bedrock region"""
-        return self.config.get('aws', 'bedrock_region', fallback='us-east-1')
+        return self.config.get('aws', 'bedrock_region', fallback='us-east-2')
     
     @property
     def bedrock_model_pro(self) -> str:

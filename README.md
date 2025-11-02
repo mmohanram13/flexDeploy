@@ -169,7 +169,7 @@ FlexDeploy is an intelligent deployment orchestration platform that uses AI to m
 - **AWS Bedrock Access**: Must be enabled in your account
 - **Model Access**: Amazon Nova Pro and Nova Lite
 - **IAM Permissions**: `bedrock:InvokeModel`
-- **Region**: us-east-1 (recommended for Bedrock)
+- **Region**: us-east-2 (recommended for Bedrock)
 
 ## 🚀 Installation
 
@@ -237,7 +237,7 @@ This creates:
 [aws]
 sso_start_url = https://your-org.awsapps.com/start/#
 sso_region = us-east-2
-bedrock_region = us-east-1
+bedrock_region = us-east-2
 ```
 
 2. Get SSO credentials:
@@ -357,7 +357,7 @@ Output:
 ✓ Database connected
 ✓ Configuration loaded
   - SSO Region: us-east-2
-  - Bedrock Region: us-east-1
+  - Bedrock Region: us-east-2
 ✓ AWS Bedrock agents initialized
   - Credentials from: ~/.aws/credentials
   - Configuration from: config.ini
@@ -681,7 +681,7 @@ python test_bedrock_agents.py
 aws sts get-caller-identity
 
 # Verify Bedrock access
-aws bedrock list-foundation-models --region us-east-1
+aws bedrock list-foundation-models --region us-east-2
 ```
 
 **Problem**: "AccessDeniedException"
@@ -752,7 +752,7 @@ python server/migrate_data.py
      "Effect": "Allow",
      "Action": ["bedrock:InvokeModel"],
      "Resource": [
-       "arn:aws:bedrock:us-east-1::foundation-model/us.amazon.nova-*"
+       "arn:aws:bedrock:us-east-2::foundation-model/us.amazon.nova-*"
      ]
    }
    ```
@@ -774,7 +774,7 @@ For production, use IAM roles instead of credentials:
 ```python
 # server/bedrock_agents.py
 # No credentials needed - uses IAM role automatically
-boto3.client('bedrock-runtime', region_name='us-east-1')
+boto3.client('bedrock-runtime', region_name='us-east-2')
 ```
 
 Deploy on:
