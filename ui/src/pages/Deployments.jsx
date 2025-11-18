@@ -47,6 +47,24 @@ export default function Deployments() {
     fetchDeployments();
   }, []);
 
+  // Polling effect - poll every 5 seconds if any deployment is in Started or In Progress state
+  useEffect(() => {
+    const hasActiveDeployments = deployments.some(
+      (d) => d.status === 'Started' || d.status === 'In Progress'
+    );
+
+    if (!hasActiveDeployments) {
+      return; // No active deployments, don't poll
+    }
+
+    const intervalId = setInterval(() => {
+      fetchDeployments();
+    }, 5000); // Poll every 5 seconds
+
+    // Cleanup interval on unmount or when dependencies change
+    return () => clearInterval(intervalId);
+  }, [deployments]);
+
   const fetchDeployments = async () => {
     try {
       const data = await apiClient.getDeployments();
@@ -61,6 +79,7 @@ export default function Deployments() {
   const getStatusColor = (status) => {
     const statusColors = {
       'Not Started': 'default',
+      'Started': 'primary',
       'In Progress': 'info',
       'Completed': 'success',
       'Failed': 'error',
@@ -200,7 +219,7 @@ export default function Deployments() {
                 </TableCell>
                 <TableCell align="right">
                   <Box sx={{ display: 'flex', gap: 1, justifyContent: 'flex-end' }}>
-                    {deployment.status === 'In Progress' ? (
+                    {deployment.status === 'In Progress' || deployment.status === 'Started' ? (
                       <Button
                         variant="outlined"
                         size="small"

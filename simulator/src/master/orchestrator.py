@@ -69,7 +69,11 @@ class MasterOrchestrator:
         await self.device_manager.load_devices_from_db()
         await self.ring_manager.load_ring_configurations()
         
-        # Start background tasks with lambda to get current running state
+        logger.info("=" * 80)
+        logger.info("STARTING BACKGROUND TASKS")
+        logger.info("=" * 80)
+        
+        # Start background tasks - DO NOT AWAIT THEM
         self._background_tasks = [
             asyncio.create_task(self._heartbeat_monitor()),
             asyncio.create_task(self._task_monitor()),
@@ -78,8 +82,31 @@ class MasterOrchestrator:
             asyncio.create_task(self.device_manager.attribute_alteration_loop(lambda: self.running))
         ]
         
-        # Start message processing
-        await self._process_messages()
+        logger.info(f"[OK] Started {len(self._background_tasks)} background tasks")
+        
+        # Verify tasks started
+        await asyncio.sleep(0.5)
+        for i, task in enumerate(self._background_tasks):
+            if task.done():
+                logger.error(f"Task {i} finished prematurely!")
+                if task.exception():
+                    logger.error(f"Task {i} exception: {task.exception()}")
+        
+        logger.info("=" * 80)
+        
+        # Run message processing loop (this will block until self.running = False)
+        try:
+            await self._process_messages()
+        finally:
+            logger.info("Message processing ended, waiting for background tasks...")
+            # Wait for background tasks to finish
+            for task in self._background_tasks:
+                if not task.done():
+                    task.cancel()
+            await asyncio.gather(*self._background_tasks, return_exceptions=True)
+        
+        logger.info("=" * 80)
+        logger.info("Master orchestrator start() completed")
     
     async def stop(self):
         """Stop the master orchestrator."""

@@ -48,16 +48,16 @@ async def startup_event():
     global bedrock_service, ring_categorization_agent, deployment_failure_agent, gating_factor_agent
     
     db.connect()
-    print("✓ Database connected")
+    print("[OK] Database connected")
     
     # Load configuration
     try:
         config = get_config()
-        print(f"✓ Configuration loaded")
+        print(f"[OK] Configuration loaded")
         print(f"  - SSO Region: {config.sso_region}")
         print(f"  - Bedrock Region: {config.bedrock_region}")
     except Exception as e:
-        print(f"⚠ Warning: Could not load config.ini: {e}")
+        print(f"[WARN] Warning: Could not load config.ini: {e}")
         print("  Using default configuration")
     
     # Initialize Bedrock agents
@@ -66,11 +66,11 @@ async def startup_event():
         ring_categorization_agent = RingCategorizationAgent(bedrock_service, db.conn)
         deployment_failure_agent = DeploymentFailureAgent(bedrock_service)
         gating_factor_agent = GatingFactorAgent(bedrock_service)
-        print("✓ AWS Bedrock agents initialized")
+        print("[OK] AWS Bedrock agents initialized")
         print(f"  - Credentials from: ~/.aws/credentials")
         print(f"  - Configuration from: config.ini")
     except Exception as e:
-        print(f"⚠ Warning: Could not initialize Bedrock agents: {e}")
+        print(f"[WARN] Warning: Could not initialize Bedrock agents: {e}")
         print("  AI features will be disabled.")
         print("  Check:")
         print("    1. AWS credentials in ~/.aws/credentials (aws_access_key_id, aws_secret_access_key, aws_session_token)")
@@ -81,7 +81,7 @@ async def startup_event():
 async def shutdown_event():
     """Close database connection on shutdown"""
     db.close()
-    print("✓ Database connection closed")
+    print("[OK] Database connection closed")
 
 
 # Pydantic models for request/response
@@ -297,6 +297,64 @@ async def get_deployment_detail(deployment_id: str):
         "deploymentName": deployment[1],
         "rings": ring_list,
         "gatingFactors": gating_factors,
+    }
+
+
+@app.get("/api/deployments/status/all")
+async def get_all_deployments_status():
+    """Get status updates for all deployments - optimized for polling"""
+    cursor = db.conn.cursor()
+    
+    # Get all deployments
+    deployments_rows = cursor.execute("""
+        SELECT deployment_id, deployment_name, status, updated_at
+        FROM deployments
+        ORDER BY 
+            CASE 
+                WHEN deployment_id = 'DEP-001' THEN 1
+                WHEN deployment_id = 'DEP-002' THEN 2  
+                WHEN deployment_id = 'DEP-003' THEN 3
+                WHEN deployment_id = 'DEP-004' THEN 4
+                ELSE 5
+            END,
+            deployment_id
+    """).fetchall()
+    
+    deployments = []
+    for dep_row in deployments_rows:
+        deployment_id = dep_row[0]
+        
+        # Get ring status for this deployment
+        rings_rows = cursor.execute("""
+            SELECT dr.ring_id, r.ring_name, dr.device_count, dr.status, dr.failure_reason, dr.updated_at
+            FROM deployment_rings dr
+            JOIN rings r ON dr.ring_id = r.ring_id
+            WHERE dr.deployment_id = ?
+            ORDER BY dr.ring_id
+        """, (deployment_id,)).fetchall()
+        
+        rings = []
+        for ring_row in rings_rows:
+            rings.append({
+                "ringId": ring_row[0],
+                "ringName": ring_row[1],
+                "deviceCount": ring_row[2],
+                "status": ring_row[3],
+                "failureReason": ring_row[4],
+                "updatedAt": ring_row[5]
+            })
+        
+        deployments.append({
+            "deploymentId": dep_row[0],
+            "deploymentName": dep_row[1],
+            "status": dep_row[2],
+            "updatedAt": dep_row[3],
+            "rings": rings
+        })
+    
+    return {
+        "deployments": deployments,
+        "timestamp": cursor.execute("SELECT CURRENT_TIMESTAMP").fetchone()[0]
     }
 
 
@@ -565,7 +623,7 @@ async def run_deployment(deployment_id: str):
     # Update deployment status
     cursor.execute("""
         UPDATE deployments
-        SET status = 'In Progress', updated_at = CURRENT_TIMESTAMP
+        SET status = 'Started', updated_at = CURRENT_TIMESTAMP
         WHERE deployment_id = ?
     """, (deployment_id,))
     

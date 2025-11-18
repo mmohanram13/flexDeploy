@@ -19,24 +19,47 @@ export default function DeploymentDetail() {
   const [loading, setLoading] = useState(true);
   const [details, setDetails] = useState(null);
 
-  useEffect(() => {
-    const fetchDeploymentDetail = async () => {
-      try {
-        const data = await apiClient.getDeploymentDetail(id);
-        setDetails(data);
-      } catch (error) {
-        console.error('Error fetching deployment details:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
+  const fetchDeploymentDetail = async () => {
+    try {
+      const data = await apiClient.getDeploymentDetail(id);
+      setDetails(data);
+    } catch (error) {
+      console.error('Error fetching deployment details:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
+  useEffect(() => {
     fetchDeploymentDetail();
   }, [id]);
+
+  // Polling effect - poll every 5 seconds if any ring is in Started or In Progress state
+  useEffect(() => {
+    if (!details || !details.rings) {
+      return;
+    }
+
+    const hasActiveRings = details.rings.some(
+      (ring) => ring.status === 'Started' || ring.status === 'In Progress'
+    );
+
+    if (!hasActiveRings) {
+      return; // No active rings, don't poll
+    }
+
+    const intervalId = setInterval(() => {
+      fetchDeploymentDetail();
+    }, 5000); // Poll every 5 seconds
+
+    // Cleanup interval on unmount or when dependencies change
+    return () => clearInterval(intervalId);
+  }, [details, id]);
 
   const getStatusColor = (status) => {
     const statusColors = {
       'Not Started': 'default',
+      'Started': 'primary',
       'In Progress': 'info',
       'Completed': 'success',
       'Failed': 'error',

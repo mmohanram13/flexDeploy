@@ -98,6 +98,10 @@ class ApiClient {
     return this.get(`/deployments/${deploymentId}`);
   }
 
+  async getDeploymentsStatus() {
+    return this.get('/deployments/status/all');
+  }
+
   async createDeployment(deploymentData) {
     return this.post('/deployments', deploymentData);
   }

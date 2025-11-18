@@ -4,6 +4,7 @@ import asyncio
 from pathlib import Path
 import json
 import random
+import logging
 
 # Ensure aws-orchestrator/src is importable
 root = Path(__file__).resolve().parent
@@ -13,6 +14,22 @@ if src_dir not in sys.path:
 
 from src.common.config import OrchestratorConfig
 from src.master.orchestrator import MasterOrchestrator
+
+# Configure logging with separate watcher log file
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.StreamHandler(),
+        logging.FileHandler('orchestrator.log'),
+    ]
+)
+
+# Add dedicated file handler for deployment watcher
+watcher_logger = logging.getLogger('src.master.deployment_manager')
+watcher_handler = logging.FileHandler('deployment_watcher.log')
+watcher_handler.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s - %(message)s'))
+watcher_logger.addHandler(watcher_handler)
 
 # Check if running in AWS Lambda
 IS_LAMBDA = "LAMBDA_TASK_ROOT" in os.environ

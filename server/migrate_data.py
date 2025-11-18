@@ -51,7 +51,7 @@ def migrate_devices(db):
               total_memory, total_storage, network_speed, avg_cpu, avg_memory, avg_disk, risk_score))
     
     db.conn.commit()
-    print(f"✓ Migrated {len(devices)} devices")
+    print(f"[OK] Migrated {len(devices)} devices")
 
 
 def migrate_rings(db):
@@ -76,7 +76,7 @@ def migrate_rings(db):
         """, ring)
     
     db.conn.commit()
-    print(f"✓ Migrated {len(rings)} rings")
+    print(f"[OK] Migrated {len(rings)} rings")
 
 
 def migrate_default_gating_factors(db):
@@ -92,7 +92,7 @@ def migrate_default_gating_factors(db):
     """, (100, 100, 0, 0, 100))
     
     db.conn.commit()
-    print("✓ Migrated default gating factors")
+    print("[OK] Migrated default gating factors")
 
 
 def migrate_deployment_gating_factors(db):
@@ -111,7 +111,7 @@ def migrate_deployment_gating_factors(db):
         """, (deployment_id, 100, 100, 0, 0, 100))
     
     db.conn.commit()
-    print(f"✓ Migrated gating factors for {len(deployments)} deployments")
+    print(f"[OK] Migrated gating factors for {len(deployments)} deployments")
 
 
 def migrate_deployments(db):
@@ -132,7 +132,7 @@ def migrate_deployments(db):
         """, deployment)
     
     db.conn.commit()
-    print(f"✓ Migrated {len(deployments)} deployments")
+    print(f"[OK] Migrated {len(deployments)} deployments")
 
 
 def migrate_deployment_rings(db):
@@ -170,7 +170,7 @@ def migrate_deployment_rings(db):
         """, dr)
     
     db.conn.commit()
-    print(f"✓ Migrated {len(deployment_rings)} deployment ring records")
+    print(f"[OK] Migrated {len(deployment_rings)} deployment ring records")
 
 
 def main():
@@ -210,7 +210,7 @@ def main():
     deployment_gating_count = cursor.execute("SELECT COUNT(*) FROM deployment_gating_factors").fetchone()[0]
     print(f"  Deployment Gating Factors: {deployment_gating_count}")
     
-    print("\n✓ Migration completed successfully!")
+    print("\n[OK] Migration completed successfully!")
     
     db.close()
 

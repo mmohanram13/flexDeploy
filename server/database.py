@@ -54,7 +54,7 @@ class Database:
             CREATE TABLE IF NOT EXISTS deployments (
                 deployment_id TEXT PRIMARY KEY,
                 deployment_name TEXT NOT NULL,
-                status TEXT NOT NULL CHECK(status IN ('Not Started', 'In Progress', 'Completed', 'Failed', 'Stopped')),
+                status TEXT NOT NULL CHECK(status IN ('Not Started', 'Started', 'In Progress', 'Completed', 'Failed', 'Stopped')),
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
@@ -68,7 +68,7 @@ class Database:
                 ring_id INTEGER NOT NULL,
                 ring_name TEXT NOT NULL,
                 device_count INTEGER NOT NULL,
-                status TEXT NOT NULL CHECK(status IN ('Not Started', 'In Progress', 'Completed', 'Failed', 'Stopped')),
+                status TEXT NOT NULL CHECK(status IN ('Not Started', 'In Progress', 'Completed', 'Failed', 'Stopped', 'Started')),
                 failure_reason TEXT,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -120,7 +120,7 @@ class Database:
         """)
         
         self.conn.commit()
-        print("✓ Database tables created successfully")
+        print("[OK] Database tables created successfully")
     
     def drop_tables(self):
         """Drop all tables (for reset/testing purposes)"""
@@ -132,7 +132,7 @@ class Database:
         cursor.execute("DROP TABLE IF EXISTS rings")
         cursor.execute("DROP TABLE IF EXISTS default_gating_factors")
         self.conn.commit()
-        print("✓ All tables dropped")
+        print("[OK] All tables dropped")
     
     def get_dashboard_metrics(self):
         """Calculate dashboard metrics from the database"""
