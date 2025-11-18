@@ -144,7 +144,7 @@ def migrate_deployment_rings(db):
         ('DEP-001', 0, 'Ring 0 - Canary (Test Bed)', 2, 'Not Started', None),
         ('DEP-001', 1, 'Ring 1 - Low Risk Devices', 5, 'Not Started', None),
         ('DEP-001', 2, 'Ring 2 - High Risk Devices', 5, 'Not Started', None),
-        ('DEP-001', 3, 'Ring 3 - VIP Devices', 3, 'Not Started', None),
+        ('DEP-001', 3, 'Ring 3 - VIP Devices', 3, 'Started', None),
         # DEP-002
         ('DEP-002', 0, 'Ring 0 - Canary (Test Bed)', 2, 'Completed', None),
         ('DEP-002', 1, 'Ring 1 - Low Risk Devices', 5, 'In Progress', None),
