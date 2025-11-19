@@ -94,7 +94,7 @@ To run the UI and backend server, always set python virtual environment and then
 ./run_app.sh
 ```
 
-You will servers running as below in port 8000 for server and 5173 for UI.
+You will see servers running as below in port 8000 for server and 5173 for UI.
 Services:
   ✓ Backend:  http://localhost:8000
   ✓ Frontend: http://localhost:5173

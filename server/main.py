@@ -15,6 +15,7 @@ from server.bedrock_agents import (
     DeploymentFailureAgent,
     GatingFactorAgent
 )
+from server.simulator_service import SimulatorService
 
 
 # Initialize FastAPI app
@@ -41,13 +42,21 @@ ring_categorization_agent = None
 deployment_failure_agent = None
 gating_factor_agent = None
 
+# Initialize simulator service
+simulator_service = None
+
 
 @app.on_event("startup")
 async def startup_event():
     """Connect to database on startup"""
-    global bedrock_service, ring_categorization_agent, deployment_failure_agent, gating_factor_agent
+    global bedrock_service, ring_categorization_agent, deployment_failure_agent, gating_factor_agent, simulator_service
     
     db.connect()
+    print("[OK] Database connected")
+    
+    # Initialize simulator service
+    simulator_service = SimulatorService(db.conn)
+    print("[OK] Simulator service initialized")
     print("[OK] Database connected")
     
     # Load configuration
@@ -981,6 +990,202 @@ async def ai_validate_gating_factors(gating_factors: GatingFactors):
             status_code=500,
             detail=f"AI validation failed: {str(e)}"
         )
+
+
+# ==================== SIMULATION APIs ====================
+
+class DeviceCreate(BaseModel):
+    """Model for creating a device via API"""
+    deviceId: str
+    deviceName: str
+    manufacturer: str
+    model: str
+    osName: str
+    site: str
+    department: str
+    ring: int
+    totalMemory: str
+    totalStorage: str
+    networkSpeed: str
+    avgCpuUsage: float = 50.0
+    avgMemoryUsage: float = 50.0
+    avgDiskSpace: float = 50.0
+    riskScore: int = 50
+
+
+class DeviceMetrics(BaseModel):
+    """Model for updating device metrics"""
+    deviceId: str
+    avgCpuUsage: float
+    avgMemoryUsage: float
+    avgDiskSpace: float
+    riskScore: Optional[int] = None
+
+
+class RingMetrics(BaseModel):
+    """Model for updating metrics for all devices in a ring"""
+    ringId: int
+    deploymentId: str
+    avgCpuUsage: Optional[float] = None
+    avgMemoryUsage: Optional[float] = None
+    avgDiskSpace: Optional[float] = None
+    riskScore: Optional[int] = None
+
+
+class DeploymentRingStatus(BaseModel):
+    """Model for updating deployment ring status"""
+    deploymentId: str
+    ringId: int
+    status: str  # Not Started, Started, In Progress, Completed, Failed, Stopped
+    failureReason: Optional[str] = None
+
+
+@app.post("/api/simulator/devices")
+async def create_device(device: DeviceCreate):
+    """
+    Create or update a device with metadata.
+    Used by simulator to add devices to the system.
+    """
+    try:
+        result = simulator_service.create_or_update_device(
+            device_id=device.deviceId,
+            device_name=device.deviceName,
+            manufacturer=device.manufacturer,
+            model=device.model,
+            os_name=device.osName,
+            site=device.site,
+            department=device.department,
+            ring=device.ring,
+            total_memory=device.totalMemory,
+            total_storage=device.totalStorage,
+            network_speed=device.networkSpeed,
+            avg_cpu_usage=device.avgCpuUsage,
+            avg_memory_usage=device.avgMemoryUsage,
+            avg_disk_space=device.avgDiskSpace,
+            risk_score=device.riskScore
+        )
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to create device: {str(e)}")
+
+
+@app.post("/api/simulator/device-metrics")
+async def update_device_metrics_endpoint(metrics: DeviceMetrics):
+    """
+    Update CPU, memory, and disk usage for a specific device.
+    Used by simulator to update device metrics dynamically.
+    """
+    try:
+        result = simulator_service.update_device_metrics(
+            device_id=metrics.deviceId,
+            avg_cpu_usage=metrics.avgCpuUsage,
+            avg_memory_usage=metrics.avgMemoryUsage,
+            avg_disk_space=metrics.avgDiskSpace,
+            risk_score=metrics.riskScore
+        )
+        
+        if result["status"] == "error":
+            raise HTTPException(status_code=404, detail=result["message"])
+        
+        return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to update metrics: {str(e)}")
+
+
+@app.post("/api/simulator/ring-metrics")
+async def update_ring_metrics_endpoint(ring_metrics: RingMetrics):
+    """
+    Update metrics for all devices in a specific ring.
+    Used by simulator to set average metrics for ring simulation.
+    """
+    try:
+        result = simulator_service.update_ring_metrics(
+            ring_id=ring_metrics.ringId,
+            deployment_id=ring_metrics.deploymentId,
+            avg_cpu_usage=ring_metrics.avgCpuUsage,
+            avg_memory_usage=ring_metrics.avgMemoryUsage,
+            avg_disk_space=ring_metrics.avgDiskSpace,
+            risk_score=ring_metrics.riskScore
+        )
+        
+        if result["status"] == "error":
+            raise HTTPException(status_code=404, detail=result["message"])
+        
+        return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to update ring metrics: {str(e)}")
+
+
+@app.post("/api/simulator/deployment-status")
+async def update_deployment_ring_status_endpoint(status_update: DeploymentRingStatus):
+    """
+    Update the status of a specific ring in a deployment.
+    Used by simulator to control deployment progression.
+    """
+    try:
+        result = simulator_service.update_deployment_ring_status(
+            deployment_id=status_update.deploymentId,
+            ring_id=status_update.ringId,
+            status=status_update.status,
+            failure_reason=status_update.failureReason
+        )
+        
+        if result["status"] == "error":
+            raise HTTPException(status_code=404, detail=result["message"])
+        
+        return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to update deployment status: {str(e)}")
+
+
+@app.get("/api/simulator/deployment/{deployment_id}/ring/{ring_id}/devices")
+async def get_ring_devices_endpoint(deployment_id: str, ring_id: int):
+    """
+    Get all devices in a specific ring for simulation purposes.
+    Returns device details including current metrics.
+    """
+    try:
+        devices = simulator_service.get_ring_devices(deployment_id, ring_id)
+        return {
+            "deploymentId": deployment_id,
+            "ringId": ring_id,
+            "devices": devices
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to get ring devices: {str(e)}")
+
+
+@app.post("/api/simulator/stress-profile")
+async def apply_stress_profile(request: dict):
+    """
+    Apply a pre-configured stress profile to a ring.
+    Stress levels: low, normal, high, critical
+    """
+    try:
+        deployment_id = request.get("deploymentId")
+        ring_id = request.get("ringId")
+        stress_level = request.get("stressLevel", "normal")
+        
+        result = simulator_service.apply_stress_profile(
+            deployment_id=deployment_id,
+            ring_id=ring_id,
+            stress_level=stress_level
+        )
+        
+        if result["status"] == "error":
+            raise HTTPException(status_code=404, detail=result["message"])
+        
+        return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to apply stress profile: {str(e)}")
 
 
 def main():

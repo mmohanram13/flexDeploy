@@ -168,6 +168,27 @@ class ApiClient {
   async aiValidateGatingFactors(gatingFactors) {
     return this.post('/ai/validate-gating-factors', gatingFactors);
   }
+
+  // Simulator APIs
+  async createDevice(deviceData) {
+    return this.post('/simulator/devices', deviceData);
+  }
+
+  async updateDeviceMetrics(metricsData) {
+    return this.post('/simulator/device-metrics', metricsData);
+  }
+
+  async updateRingMetrics(ringMetricsData) {
+    return this.post('/simulator/ring-metrics', ringMetricsData);
+  }
+
+  async updateDeploymentRingStatus(statusData) {
+    return this.post('/simulator/deployment-status', statusData);
+  }
+
+  async getRingDevices(deploymentId, ringId) {
+    return this.get(`/simulator/deployment/${deploymentId}/ring/${ringId}/devices`);
+  }
 }
 
 export const apiClient = new ApiClient();
