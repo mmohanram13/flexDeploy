@@ -102,8 +102,10 @@ export default function Simulator() {
   }, []);
 
   useEffect(() => {
-    if (selectedTarget !== null) {
+    if (selectedTarget !== null && selectedTarget !== undefined) {
       fetchTargetDevices();
+    } else {
+      setTargetDevices([]);
     }
   }, [selectedTarget]);
 
@@ -116,9 +118,11 @@ export default function Simulator() {
   const fetchDeployments = async () => {
     try {
       const data = await apiClient.getDeployments();
-      setDeployments(data.map(d => ({ label: `${d.deploymentName} (${d.deploymentId})`, value: d.deploymentId })));
-      if (data.length > 0) {
-        setSelectedDeployment(data[0].deploymentId);
+      // Filter to show only 'In Progress' deployments
+      const inProgressDeployments = data.filter(d => d.status === 'In Progress');
+      setDeployments(inProgressDeployments.map(d => ({ label: `${d.deploymentName} (${d.deploymentId})`, value: d.deploymentId })));
+      if (inProgressDeployments.length > 0) {
+        setSelectedDeployment({ label: `${inProgressDeployments[0].deploymentName} (${inProgressDeployments[0].deploymentId})`, value: inProgressDeployments[0].deploymentId });
       }
     } catch (error) {
       console.error('Error fetching deployments:', error);
@@ -131,7 +135,7 @@ export default function Simulator() {
     
     setLoading(true);
     try {
-      const data = await apiClient.getRingDevices(selectedDeployment, selectedRing.id);
+      const data = await apiClient.getRingDevices(selectedDeployment.value, selectedRing.id);
       setRingDevices(data.devices || []);
     } catch (error) {
       console.error('Error fetching ring devices:', error);
@@ -142,22 +146,21 @@ export default function Simulator() {
   };
 
   const fetchTargetDevices = async () => {
-    if (!selectedDeployment || selectedTarget === null) return;
+    if (selectedTarget === null || selectedTarget === undefined) return;
     
     setLoading(true);
     try {
-      if (selectedTarget.type === 'all') {
-        // Fetch devices from all rings
-        const allDevices = [];
-        for (const ring of rings) {
-          const data = await apiClient.getRingDevices(selectedDeployment, ring.id);
-          allDevices.push(...(data.devices || []));
-        }
+      // Fetch all devices and filter by ring
+      const allDevices = await apiClient.getDevices();
+      
+      // selectedTarget is the direct value, not an object
+      if (selectedTarget === 'all') {
+        // Return all devices
         setTargetDevices(allDevices);
       } else {
-        // Fetch devices from specific ring
-        const data = await apiClient.getRingDevices(selectedDeployment, selectedTarget.value);
-        setTargetDevices(data.devices || []);
+        // Filter devices by selected ring ID (ring is stored as integer in DB)
+        const filteredDevices = allDevices.filter(d => d.ring === selectedTarget);
+        setTargetDevices(filteredDevices);
       }
     } catch (error) {
       console.error('Error fetching target devices:', error);
@@ -175,10 +178,10 @@ export default function Simulator() {
     setLoading(true);
     try {
       const demoDeployments = [
-        { deploymentId: 'DEP-001', deploymentName: 'Windows 11 Update' },
-        { deploymentId: 'DEP-002', deploymentName: 'Security Patch Q4 2025' },
-        { deploymentId: 'DEP-003', deploymentName: 'Microsoft Office 365 Update' },
-        { deploymentId: 'DEP-004', deploymentName: 'Test Deployment' },
+        { deploymentName: 'Windows 11 Update', status: 'Not Started' },
+        { deploymentName: 'Security Patch Q4 2025', status: 'Not Started' },
+        { deploymentName: 'Microsoft Office 365 Update', status: 'Not Started' },
+        { deploymentName: 'Test Deployment', status: 'Not Started' },
       ];
 
       for (const deployment of demoDeployments) {
@@ -190,6 +193,36 @@ export default function Simulator() {
     } catch (error) {
       console.error('Error populating deployments:', error);
       showToast('error', 'Error', 'Failed to populate deployments');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleReinitApplication = async () => {
+    const confirmed = window.confirm(
+      'Are you sure you want to reinitialize the application? This will delete ALL devices and deployments. This action cannot be undone.'
+    );
+    
+    if (!confirmed) return;
+
+    setLoading(true);
+    try {
+      await apiClient.reinitApplication();
+      showToast('success', 'Success', 'Application reinitialized successfully');
+      
+      // Reset local state
+      setDeployments([]);
+      setSelectedDeployment(null);
+      setSelectedRing(null);
+      setSelectedTarget(null);
+      setRingDevices([]);
+      setTargetDevices([]);
+      
+      // Refresh data
+      fetchDeployments();
+    } catch (error) {
+      console.error('Error reinitializing application:', error);
+      showToast('error', 'Error', 'Failed to reinitialize application');
     } finally {
       setLoading(false);
     }
@@ -207,12 +240,43 @@ export default function Simulator() {
       const models = ['Latitude', 'EliteBook', 'ThinkPad', 'MacBook Pro', 'Surface'];
       const osNames = ['Windows 10', 'Windows 11', 'macOS', 'Ubuntu'];
       const sites = ['New York', 'San Francisco', 'London', 'Tokyo', 'Sydney'];
-      const departments = ['Engineering', 'Sales', 'Marketing', 'HR', 'Finance'];
+      const departments = ['Engineering', 'IT', 'Marketing', 'Sysadmin', 'Finance', 'Executive', 'Leadership'];
 
       let createdCount = 0;
       
       for (let i = 0; i < deviceCount; i++) {
         const deviceId = `DEV-${Date.now()}-${i}`;
+        
+        // Create varied device profiles for better risk score distribution
+        // 25% low usage (high risk scores 71-100)
+        // 40% medium usage (medium risk scores 31-70)  
+        // 25% high usage (low risk scores 0-30)
+        // 10% very low usage (test devices)
+        const profile = Math.random();
+        let avgCpuUsage, avgMemoryUsage, avgDiskSpace;
+        
+        if (profile < 0.10) {
+          // Very low usage - test/canary devices
+          avgCpuUsage = Math.random() * 15 + 5;  // 5-20%
+          avgMemoryUsage = Math.random() * 20 + 10;  // 10-30%
+          avgDiskSpace = Math.random() * 20 + 10;  // 10-30% (lots of free space)
+        } else if (profile < 0.35) {
+          // Low usage - stable devices
+          avgCpuUsage = Math.random() * 20 + 15;  // 15-35%
+          avgMemoryUsage = Math.random() * 25 + 20;  // 20-45%
+          avgDiskSpace = Math.random() * 25 + 20;  // 20-45%
+        } else if (profile < 0.75) {
+          // Medium usage - typical production
+          avgCpuUsage = Math.random() * 30 + 40;  // 40-70%
+          avgMemoryUsage = Math.random() * 30 + 40;  // 40-70%
+          avgDiskSpace = Math.random() * 30 + 45;  // 45-75%
+        } else {
+          // High usage - stressed devices
+          avgCpuUsage = Math.random() * 15 + 75;  // 75-90%
+          avgMemoryUsage = Math.random() * 15 + 75;  // 75-90%
+          avgDiskSpace = Math.random() * 15 + 75;  // 75-90%
+        }
+        
         const deviceData = {
           deviceId: deviceId,
           deviceName: `Device ${deviceId}`,
@@ -221,12 +285,12 @@ export default function Simulator() {
           osName: osNames[Math.floor(Math.random() * osNames.length)],
           site: sites[Math.floor(Math.random() * sites.length)],
           department: departments[Math.floor(Math.random() * departments.length)],
-          totalMemory: Math.floor(Math.random() * 16 + 8) * 1024, // 8-24 GB
-          totalStorage: Math.floor(Math.random() * 512 + 256) * 1024, // 256-768 GB
+          totalMemory: Math.floor(Math.random() * 16 + 8), // 8-24 GB
+          totalStorage: Math.floor(Math.random() * 512 + 256), // 256-768 GB
           networkSpeed: Math.floor(Math.random() * 900 + 100), // 100-1000 Mbps
-          avgCpuUsage: Math.random() * 30 + 20, // 20-50%
-          avgMemoryUsage: Math.random() * 30 + 30, // 30-60%
-          avgDiskSpace: Math.random() * 30 + 30, // 30-60%
+          avgCpuUsage: avgCpuUsage,
+          avgMemoryUsage: avgMemoryUsage,
+          avgDiskSpace: avgDiskSpace,
         };
 
         await apiClient.createDevice(deviceData);
@@ -244,7 +308,7 @@ export default function Simulator() {
   };
 
   const handleApplyStressToRing = async () => {
-    if (selectedTarget === null) {
+    if (selectedTarget === null || selectedTarget === undefined) {
       showToast('warn', 'Warning', 'Please select a target');
       return;
     }
@@ -268,7 +332,7 @@ export default function Simulator() {
         });
       }
 
-      const targetName = selectedTarget.type === 'all' ? 'All Rings' : selectedTarget.label;
+      const targetName = selectedTarget === 'all' ? 'All Rings' : (rings.find(r => r.id === selectedTarget)?.name || 'Target');
       showToast('success', 'Success', `Applied ${profile.label} to ${targetDevices.length} devices in ${targetName}`);
       fetchTargetDevices();
       if (selectedRing !== null) {
@@ -288,13 +352,31 @@ export default function Simulator() {
       return;
     }
 
+    const failureReasons = [
+      'Installation failed due to insufficient disk space on multiple devices',
+      'Network timeout during package download',
+      'Permission denied - insufficient privileges to complete installation',
+      'Dependency conflict detected with existing software',
+      'Service restart failed after update',
+      'Rollback triggered due to application crashes',
+      'Critical error during database migration',
+      'Security validation failed - signature mismatch',
+    ];
+
     try {
-      await apiClient.updateDeploymentRingStatus({
-        deploymentId: selectedDeployment,
+      const payload = {
+        deploymentId: selectedDeployment.value,
         ringId: selectedRing.id,
         status: status,
-      });
-      showToast('success', 'Success', `Status updated to ${status}`);
+      };
+
+      // Add random failure reason if status is 'Failed'
+      if (status === 'Failed') {
+        payload.failureReason = failureReasons[Math.floor(Math.random() * failureReasons.length)];
+      }
+
+      await apiClient.updateDeploymentRingStatus(payload);
+      showToast('success', 'Success', `Ring status updated to ${status}`);
     } catch (error) {
       console.error('Error updating status:', error);
       showToast('error', 'Error', 'Failed to update status');
@@ -316,7 +398,7 @@ export default function Simulator() {
 
   return (
     <div className="simulator-container">
-      <Toast ref={toast} />
+      <Toast ref={toast} className="simulator-toast" />
       
       {/* Header */}
       <div className="simulator-header">
@@ -388,6 +470,17 @@ export default function Simulator() {
                     loading={loading}
                   />
                 </div>
+                <div className="setup-divider"></div>
+                <div className="setup-action-item">
+                  <label className="setup-action-label">Reset Application</label>
+                  <Button
+                    label="Reinitialize Application"
+                    icon="pi pi-refresh"
+                    className="p-button-lg p-button-danger setup-action-btn"
+                    onClick={handleReinitApplication}
+                    loading={loading}
+                  />
+                </div>
               </div>
             </div>
           </div>
@@ -419,7 +512,7 @@ export default function Simulator() {
                     onClick={fetchTargetDevices}
                     tooltip="Reload target devices"
                     tooltipOptions={{ position: 'top' }}
-                    disabled={!selectedTarget}
+                    disabled={selectedTarget === null || selectedTarget === undefined}
                   />
                   <Button
                     icon="pi pi-eye"
@@ -429,7 +522,7 @@ export default function Simulator() {
                       setDialogSource('target');
                       setShowDevicesDialog(true);
                     }}
-                    disabled={!selectedTarget || targetDevices.length === 0}
+                    disabled={(selectedTarget === null || selectedTarget === undefined) || targetDevices.length === 0}
                     tooltip="View devices in target"
                     tooltipOptions={{ position: 'top' }}
                   />
@@ -482,8 +575,8 @@ export default function Simulator() {
                   return <span className="text-grey-500">{props.placeholder}</span>;
                 }}
               />
-              {selectedTarget && (
-                <div className="device-count-info">
+              {selectedTarget !== null && selectedTarget !== undefined && (
+                <div key={`target-count-${selectedTarget}`} className="device-count-info">
                   <i className="pi pi-desktop"></i>
                   <span className="device-count-text">{targetDevices.length} devices</span>
                 </div>
@@ -522,12 +615,12 @@ export default function Simulator() {
           </div>
 
           <Button
-            label={`Apply ${stressLevel.charAt(0).toUpperCase() + stressLevel.slice(1)} Load to ${selectedTarget?.type === 'all' ? 'All Rings' : (selectedTarget?.label || 'Target')}`}
+            label={`Apply ${stressLevel.charAt(0).toUpperCase() + stressLevel.slice(1)} Load to ${selectedTarget === 'all' ? 'All Rings' : (rings.find(r => r.id === selectedTarget)?.name || 'Target')}`}
             icon="pi pi-play"
             className="p-button-lg apply-button w-full mt-4"
             onClick={handleApplyStressToRing}
             loading={loading}
-            disabled={!selectedTarget || targetDevices.length === 0}
+            disabled={selectedTarget === null || selectedTarget === undefined || targetDevices.length === 0}
           />
         </Card>
 
@@ -536,8 +629,8 @@ export default function Simulator() {
           header={
             dialogSource === 'ring' && selectedRing
               ? `Devices in ${selectedRing.name}` 
-              : dialogSource === 'target' && selectedTarget
-                ? `Devices in ${selectedTarget.label}` 
+              : dialogSource === 'target' && (selectedTarget !== null && selectedTarget !== undefined)
+                ? `Devices in ${selectedTarget === 'all' ? 'All Rings' : (rings.find(r => r.id === selectedTarget)?.name || 'Target')}` 
                 : 'Devices'
           }
           visible={showDevicesDialog}
@@ -602,7 +695,7 @@ export default function Simulator() {
                 Deployment Status Control
               </h2>
               <p className="section-description">
-                Select deployment and ring, then update status
+                Select in-progress deployment and ring, then update ring status
               </p>
             </div>
           </div>
@@ -610,7 +703,7 @@ export default function Simulator() {
           <div className="config-grid">
             <div className="config-item">
               <div className="config-item-header">
-                <label className="config-label">Deployment</label>
+                <label className="config-label">In-Progress Deployments</label>
                 <Button
                   icon="pi pi-refresh"
                   className="p-button-text p-button-sm refresh-btn"
@@ -678,7 +771,7 @@ export default function Simulator() {
                 ) : 'Select ring'}
               />
               {selectedRing && (
-                <div className="device-count-info">
+                <div key={`ring-count-${selectedRing.id}`} className="device-count-info">
                   <i className="pi pi-desktop"></i>
                   <span className="device-count-text">{ringDevices.length} devices</span>
                 </div>
@@ -689,7 +782,7 @@ export default function Simulator() {
           <Divider />
 
           <div className="status-section">
-            <label className="config-label">Update Status</label>
+            <label className="config-label">Ring Status</label>
             <div className="status-grid">
               {statusOptions.map((status) => (
                 <Button

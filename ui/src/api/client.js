@@ -189,6 +189,10 @@ class ApiClient {
   async getRingDevices(deploymentId, ringId) {
     return this.get(`/simulator/deployment/${deploymentId}/ring/${ringId}/devices`);
   }
+
+  async reinitApplication() {
+    return this.post('/simulator/reinit');
+  }
 }
 
 export const apiClient = new ApiClient();

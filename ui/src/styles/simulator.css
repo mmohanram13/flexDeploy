@@ -854,6 +854,46 @@
   padding: var(--spacing-md) !important;
 }
 
+/* Toast Notifications */
+.simulator-toast .p-toast-message {
+  opacity: 1 !important;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2) !important;
+}
+
+.simulator-toast .p-toast-message-success {
+  background: #43A047 !important;
+  border-left: 6px solid #2E7D32 !important;
+}
+
+.simulator-toast .p-toast-message-error {
+  background: #E53935 !important;
+  border-left: 6px solid #C62828 !important;
+}
+
+.simulator-toast .p-toast-message-warn {
+  background: #FB8C00 !important;
+  border-left: 6px solid #EF6C00 !important;
+}
+
+.simulator-toast .p-toast-message-info {
+  background: #1976D2 !important;
+  border-left: 6px solid #1565C0 !important;
+}
+
+.simulator-toast .p-toast-message-content {
+  color: white !important;
+}
+
+.simulator-toast .p-toast-icon-close {
+  color: white !important;
+  opacity: 0.9;
+}
+
+.simulator-toast .p-toast-icon-close:hover {
+  opacity: 1;
+  background: rgba(255, 255, 255, 0.1) !important;
+}
+
 /* Responsive Design */
 @media (max-width: 1200px) {
   .config-grid {

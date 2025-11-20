@@ -37,9 +37,9 @@ class Database:
                 site TEXT NOT NULL,
                 department TEXT NOT NULL,
                 ring INTEGER NOT NULL,
-                total_memory TEXT NOT NULL,
-                total_storage TEXT NOT NULL,
-                network_speed TEXT NOT NULL,
+                total_memory INTEGER NOT NULL,
+                total_storage INTEGER NOT NULL,
+                network_speed INTEGER NOT NULL,
                 avg_cpu_usage REAL NOT NULL,
                 avg_memory_usage REAL NOT NULL,
                 avg_disk_space REAL NOT NULL,
@@ -54,7 +54,7 @@ class Database:
             CREATE TABLE IF NOT EXISTS deployments (
                 deployment_id TEXT PRIMARY KEY,
                 deployment_name TEXT NOT NULL,
-                status TEXT NOT NULL CHECK(status IN ('Not Started', 'Started', 'In Progress', 'Completed', 'Failed', 'Stopped')),
+                status TEXT NOT NULL CHECK(status IN ('Not Started', 'In Progress', 'Completed', 'Failed', 'Stopped')),
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
@@ -68,7 +68,7 @@ class Database:
                 ring_id INTEGER NOT NULL,
                 ring_name TEXT NOT NULL,
                 device_count INTEGER NOT NULL,
-                status TEXT NOT NULL CHECK(status IN ('Not Started', 'In Progress', 'Completed', 'Failed', 'Stopped', 'Started')),
+                status TEXT NOT NULL CHECK(status IN ('Not Started', 'In Progress', 'Completed', 'Failed', 'Stopped')),
                 failure_reason TEXT,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -415,6 +415,16 @@ def get_all_deployments() -> List[Dict[str, Any]]:
     return deployments
 
 
+def populate_default_data(db):
+    """
+    Populate database with default data (rings and gating factors)
+    This function is deprecated - use server.init_data.populate_all_defaults() instead
+    Kept for backward compatibility
+    """
+    from server.init_data import populate_all_defaults
+    populate_all_defaults(db)
+
+
 def init_database(db_path: str = "flexdeploy.db", reset: bool = False):
     """Initialize the database"""
     db = Database(db_path)
@@ -436,6 +446,7 @@ def init_database(db_path: str = "flexdeploy.db", reset: bool = False):
 __all__ = [
     'Database',
     'init_database',
+    'populate_default_data',  # Deprecated - use server.init_data instead
     'get_db',
     'get_all_devices',
     'get_device_by_id',

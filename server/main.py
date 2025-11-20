@@ -16,6 +16,7 @@ from server.bedrock_agents import (
     GatingFactorAgent
 )
 from server.simulator_service import SimulatorService
+from server.database import populate_default_data
 
 
 # Initialize FastAPI app
@@ -54,10 +55,27 @@ async def startup_event():
     db.connect()
     print("[OK] Database connected")
     
+    # Create tables if they don't exist
+    db.create_tables()
+    print("[OK] Database tables verified/created")
+    
+    # Populate default data if database is empty
+    populate_default_data(db)
+    
+    # Check if there are any devices/deployments and provide guidance
+    cursor = db.conn.cursor()
+    device_count = cursor.execute("SELECT COUNT(*) FROM devices").fetchone()[0]
+    deployment_count = cursor.execute("SELECT COUNT(*) FROM deployments").fetchone()[0]
+    
+    if device_count == 0 and deployment_count == 0:
+        print("\n[INFO] No sample data found in database")
+        print("  To populate with demo data, run:")
+        print("    python server/migrate_data.py")
+        print("  Or use the Simulator UI to create devices/deployments\n")
+    
     # Initialize simulator service
     simulator_service = SimulatorService(db.conn)
     print("[OK] Simulator service initialized")
-    print("[OK] Database connected")
     
     # Load configuration
     try:
@@ -209,9 +227,9 @@ async def get_devices():
             "site": row[5],
             "department": row[6],
             "ring": row[7],
-            "totalMemory": row[8],
-            "totalStorage": row[9],
-            "networkSpeed": row[10],
+            "totalMemory": f"{row[8]} GB",
+            "totalStorage": f"{row[9]} GB",
+            "networkSpeed": f"{row[10]} Mbps",
             "avgCpuUsage": row[11],
             "avgMemoryUsage": row[12],
             "avgDiskSpace": row[13],
@@ -632,7 +650,7 @@ async def run_deployment(deployment_id: str):
     # Update deployment status
     cursor.execute("""
         UPDATE deployments
-        SET status = 'Started', updated_at = CURRENT_TIMESTAMP
+        SET status = 'In Progress', updated_at = CURRENT_TIMESTAMP
         WHERE deployment_id = ?
     """, (deployment_id,))
     
@@ -1003,14 +1021,14 @@ class DeviceCreate(BaseModel):
     osName: str
     site: str
     department: str
-    ring: int
-    totalMemory: str
-    totalStorage: str
-    networkSpeed: str
+    ring: Optional[int] = None
+    totalMemory: int  # in GB
+    totalStorage: int  # in GB
+    networkSpeed: int  # in Mbps
     avgCpuUsage: float = 50.0
     avgMemoryUsage: float = 50.0
     avgDiskSpace: float = 50.0
-    riskScore: int = 50
+    riskScore: Optional[int] = None
 
 
 class DeviceMetrics(BaseModel):
@@ -1036,7 +1054,7 @@ class DeploymentRingStatus(BaseModel):
     """Model for updating deployment ring status"""
     deploymentId: str
     ringId: int
-    status: str  # Not Started, Started, In Progress, Completed, Failed, Stopped
+    status: str  # Not Started, In Progress, Completed, Failed, Stopped
     failureReason: Optional[str] = None
 
 
@@ -1045,6 +1063,7 @@ async def create_device(device: DeviceCreate):
     """
     Create or update a device with metadata.
     Used by simulator to add devices to the system.
+    If ring is not provided, device will be assigned to ring 0 by default.
     """
     try:
         result = simulator_service.create_or_update_device(
@@ -1055,7 +1074,7 @@ async def create_device(device: DeviceCreate):
             os_name=device.osName,
             site=device.site,
             department=device.department,
-            ring=device.ring,
+            ring=device.ring if device.ring is not None else 0,  # Default to ring 0 if not provided
             total_memory=device.totalMemory,
             total_storage=device.totalStorage,
             network_speed=device.networkSpeed,
@@ -1186,6 +1205,34 @@ async def apply_stress_profile(request: dict):
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to apply stress profile: {str(e)}")
+
+
+@app.post("/api/simulator/reinit")
+async def reinit_application():
+    """
+    Reinitialize the application by deleting all devices and deployments.
+    Used by simulator to reset the system to a clean state.
+    """
+    try:
+        cursor = db.conn.cursor()
+        
+        # Delete all deployment-related data
+        cursor.execute("DELETE FROM deployment_gating_factors")
+        cursor.execute("DELETE FROM deployment_rings")
+        cursor.execute("DELETE FROM deployments")
+        
+        # Delete all devices
+        cursor.execute("DELETE FROM devices")
+        
+        db.conn.commit()
+        
+        return {
+            "status": "success",
+            "message": "Application reinitialized successfully. All devices and deployments have been deleted."
+        }
+    except Exception as e:
+        db.conn.rollback()
+        raise HTTPException(status_code=500, detail=f"Failed to reinitialize application: {str(e)}")
 
 
 def main():

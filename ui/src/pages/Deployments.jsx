@@ -47,10 +47,10 @@ export default function Deployments() {
     fetchDeployments();
   }, []);
 
-  // Polling effect - poll every 5 seconds if any deployment is in Started or In Progress state
+  // Polling effect - poll every 5 seconds if any deployment is In Progress
   useEffect(() => {
     const hasActiveDeployments = deployments.some(
-      (d) => d.status === 'Started' || d.status === 'In Progress'
+      (d) => d.status === 'In Progress'
     );
 
     if (!hasActiveDeployments) {
@@ -79,7 +79,6 @@ export default function Deployments() {
   const getStatusColor = (status) => {
     const statusColors = {
       'Not Started': 'default',
-      'Started': 'primary',
       'In Progress': 'info',
       'Completed': 'success',
       'Failed': 'error',
@@ -219,7 +218,7 @@ export default function Deployments() {
                 </TableCell>
                 <TableCell align="right">
                   <Box sx={{ display: 'flex', gap: 1, justifyContent: 'flex-end' }}>
-                    {deployment.status === 'In Progress' || deployment.status === 'Started' ? (
+                    {deployment.status === 'In Progress' ? (
                       <Button
                         variant="outlined"
                         size="small"

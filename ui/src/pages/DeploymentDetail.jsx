@@ -9,16 +9,12 @@ import {
   Chip,
   Grid,
   CircularProgress,
-  Button,
-  TextField,
   Table,
   TableBody,
   TableCell,
   TableContainer,
   TableHead,
   TableRow,
-  Alert,
-  Snackbar,
 } from '@mui/material';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import { useParams } from 'react-router-dom';
@@ -30,10 +26,6 @@ export default function DeploymentDetail() {
   const [details, setDetails] = useState(null);
   const [ringDevices, setRingDevices] = useState({});
   const [expandedRing, setExpandedRing] = useState(null);
-  
-  // Simulation controls state
-  const [simulationValues, setSimulationValues] = useState({});
-  const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
 
   const fetchDeploymentDetail = async () => {
     try {
@@ -95,58 +87,7 @@ export default function DeploymentDetail() {
     }
   };
 
-  const handleSimulationChange = (ringId, field, value) => {
-    setSimulationValues(prev => ({
-      ...prev,
-      [ringId]: {
-        ...prev[ringId],
-        [field]: value
-      }
-    }));
-  };
 
-  const handleApplySimulation = async (ringId) => {
-    const values = simulationValues[ringId] || {};
-    
-    try {
-      const payload = {
-        ringId: ringId,
-        deploymentId: id,
-      };
-
-      // Add only the fields that have values
-      if (values.avgCpuUsage !== undefined && values.avgCpuUsage !== '') {
-        payload.avgCpuUsage = parseFloat(values.avgCpuUsage);
-      }
-      if (values.avgMemoryUsage !== undefined && values.avgMemoryUsage !== '') {
-        payload.avgMemoryUsage = parseFloat(values.avgMemoryUsage);
-      }
-      if (values.avgDiskSpace !== undefined && values.avgDiskSpace !== '') {
-        payload.avgDiskSpace = parseFloat(values.avgDiskSpace);
-      }
-      if (values.riskScore !== undefined && values.riskScore !== '') {
-        payload.riskScore = parseInt(values.riskScore);
-      }
-
-      await apiClient.updateRingMetrics(payload);
-      
-      // Refresh devices for this ring
-      await fetchRingDevices(ringId);
-      
-      setSnackbar({
-        open: true,
-        message: `Successfully updated metrics for Ring ${ringId}`,
-        severity: 'success'
-      });
-    } catch (error) {
-      console.error('Error applying simulation:', error);
-      setSnackbar({
-        open: true,
-        message: `Failed to update metrics: ${error.message}`,
-        severity: 'error'
-      });
-    }
-  };
 
   const getStatusColor = (status) => {
     const statusColors = {
@@ -243,7 +184,6 @@ export default function DeploymentDetail() {
       {details.rings.map((ring, index) => {
         const ringId = index; // Ring 0, 1, 2, 3
         const devices = ringDevices[ringId] || [];
-        const simValues = simulationValues[ringId] || {};
 
         return (
           <Accordion 
@@ -291,70 +231,14 @@ export default function DeploymentDetail() {
                     </Typography>
                   </Grid>
                 )}
+              </Grid>
 
-                {/* Simulation Controls */}
-                <Grid item xs={12}>
-                  <Paper elevation={1} sx={{ p: 2, mt: 2, bgcolor: 'action.hover' }}>
-                    <Typography variant="subtitle2" gutterBottom>
-                      Simulation Controls
-                    </Typography>
-                    <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 2 }}>
-                      Set average metrics for all devices in this ring
-                    </Typography>
-                    <Grid container spacing={2}>
-                      <Grid item xs={12} sm={3}>
-                        <TextField
-                          label="Avg CPU Usage (%)"
-                          type="number"
-                          size="small"
-                          fullWidth
-                          value={simValues.avgCpuUsage || ''}
-                          onChange={(e) => handleSimulationChange(ringId, 'avgCpuUsage', e.target.value)}
-                          inputProps={{ min: 0, max: 100, step: 0.1 }}
-                        />
-                      </Grid>
-                      <Grid item xs={12} sm={3}>
-                        <TextField
-                          label="Avg Memory Usage (%)"
-                          type="number"
-                          size="small"
-                          fullWidth
-                          value={simValues.avgMemoryUsage || ''}
-                          onChange={(e) => handleSimulationChange(ringId, 'avgMemoryUsage', e.target.value)}
-                          inputProps={{ min: 0, max: 100, step: 0.1 }}
-                        />
-                      </Grid>
-                      <Grid item xs={12} sm={3}>
-                        <TextField
-                          label="Avg Disk Usage (%)"
-                          type="number"
-                          size="small"
-                          fullWidth
-                          value={simValues.avgDiskSpace || ''}
-                          onChange={(e) => handleSimulationChange(ringId, 'avgDiskSpace', e.target.value)}
-                          inputProps={{ min: 0, max: 100, step: 0.1 }}
-                        />
-                      </Grid>
-                      <Grid item xs={12} sm={3}>
-                        <Button
-                          variant="contained"
-                          fullWidth
-                          onClick={() => handleApplySimulation(ringId)}
-                          sx={{ height: '40px' }}
-                        >
-                          Apply
-                        </Button>
-                      </Grid>
-                    </Grid>
-                  </Paper>
-                </Grid>
-
-                {/* Devices Table */}
-                {devices.length > 0 && (
-                  <Grid item xs={12}>
-                    <Typography variant="subtitle2" gutterBottom sx={{ mt: 2 }}>
-                      Devices in this Ring
-                    </Typography>
+              {/* Devices Table */}
+              {devices.length > 0 && (
+                <Box sx={{ mt: 3 }}>
+                  <Typography variant="subtitle2" gutterBottom>
+                    Devices in this Ring
+                  </Typography>
                     <TableContainer component={Paper} variant="outlined" sx={{ maxHeight: 400 }}>
                       <Table size="small" stickyHeader>
                         <TableHead>
@@ -387,23 +271,12 @@ export default function DeploymentDetail() {
                         </TableBody>
                       </Table>
                     </TableContainer>
-                  </Grid>
+                  </Box>
                 )}
-              </Grid>
             </AccordionDetails>
           </Accordion>
         );
       })}
-
-      <Snackbar
-        open={snackbar.open}
-        autoHideDuration={6000}
-        onClose={() => setSnackbar({ ...snackbar, open: false })}
-      >
-        <Alert onClose={() => setSnackbar({ ...snackbar, open: false })} severity={snackbar.severity}>
-          {snackbar.message}
-        </Alert>
-      </Snackbar>
     </Box>
   );
 }

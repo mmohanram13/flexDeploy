@@ -1,30 +1,33 @@
 """
 Pydantic models for FlexDeploy API
 """
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import Optional, List
 from datetime import datetime
 
 
 class Device(BaseModel):
     """Device model"""
-    device_id: str
-    device_name: str
+    device_id: str = Field(alias="deviceId")
+    device_name: str = Field(alias="deviceName")
     manufacturer: str
     model: str
-    os_name: str
+    os_name: str = Field(alias="osName")
     site: str
     department: str
     ring: int
-    total_memory: str
-    total_storage: str
-    network_speed: str
-    avg_cpu_usage: float
-    avg_memory_usage: float
-    avg_disk_space: float
-    risk_score: int
-    created_at: Optional[str] = None
-    updated_at: Optional[str] = None
+    total_memory: str = Field(alias="totalMemory")
+    total_storage: str = Field(alias="totalStorage")
+    network_speed: str = Field(alias="networkSpeed")
+    avg_cpu_usage: float = Field(alias="avgCpuUsage")
+    avg_memory_usage: float = Field(alias="avgMemoryUsage")
+    avg_disk_space: float = Field(alias="avgDiskSpace")
+    risk_score: int = Field(alias="riskScore")
+    created_at: Optional[str] = Field(default=None, alias="createdAt")
+    updated_at: Optional[str] = Field(default=None, alias="updatedAt")
+    
+    class Config:
+        populate_by_name = True
 
 
 class Ring(BaseModel):
