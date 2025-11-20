@@ -122,7 +122,7 @@ export default function Simulator() {
       const inProgressDeployments = data.filter(d => d.status === 'In Progress');
       setDeployments(inProgressDeployments.map(d => ({ label: `${d.deploymentName} (${d.deploymentId})`, value: d.deploymentId })));
       if (inProgressDeployments.length > 0) {
-        setSelectedDeployment({ label: `${inProgressDeployments[0].deploymentName} (${inProgressDeployments[0].deploymentId})`, value: inProgressDeployments[0].deploymentId });
+        setSelectedDeployment(inProgressDeployments[0].deploymentId);
       }
     } catch (error) {
       console.error('Error fetching deployments:', error);
@@ -375,7 +375,7 @@ export default function Simulator() {
 
     try {
       const payload = {
-        deploymentId: selectedDeployment.value,
+        deploymentId: selectedDeployment,
         ringId: selectedRing.id,
         status: status,
       };
@@ -384,12 +384,18 @@ export default function Simulator() {
       if (status === 'Failed') {
         payload.failureReason = failureReasons[Math.floor(Math.random() * failureReasons.length)];
       }
-
-      await apiClient.updateDeploymentRingStatus(payload);
-      showToast('success', 'Success', `Ring status updated to ${status}`);
+      
+      const result = await apiClient.updateDeploymentRingStatus(payload);
+      
+      // Show different message if gating factor violation detected
+      if (result.gatingFactorViolation && result.failureReason) {
+        showToast('error', 'Gating Factor Violation', result.failureReason);
+      } else {
+        showToast('success', 'Success', `Ring status updated to ${status}`);
+      }
     } catch (error) {
       console.error('Error updating status:', error);
-      showToast('error', 'Error', 'Failed to update status');
+      showToast('error', 'Error', `Failed to update status: ${error.message}`);
     }
   };
 
@@ -726,6 +732,8 @@ export default function Simulator() {
                 value={selectedDeployment}
                 options={deployments}
                 onChange={(e) => setSelectedDeployment(e.value)}
+                optionLabel="label"
+                optionValue="value"
                 placeholder="Select deployment"
                 className="w-full"
               />
@@ -761,6 +769,7 @@ export default function Simulator() {
                 options={rings}
                 onChange={(e) => setSelectedRing(e.value)}
                 optionLabel="name"
+                dataKey="id"
                 placeholder="Select ring"
                 className="w-full"
                 itemTemplate={(option) => (

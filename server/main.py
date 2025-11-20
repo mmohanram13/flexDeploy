@@ -6,6 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from typing import List, Optional
 from pydantic import BaseModel
 import uvicorn
+import asyncio
 
 from server.database import Database
 from server.config import get_config
@@ -16,6 +17,7 @@ from server.bedrock_agents import (
     GatingFactorAgent
 )
 from server.simulator_service import SimulatorService
+from server.deployment_scheduler import DeploymentScheduler
 from server.database import populate_default_data
 
 
@@ -46,11 +48,14 @@ gating_factor_agent = None
 # Initialize simulator service
 simulator_service = None
 
+# Initialize deployment scheduler
+deployment_scheduler = None
+
 
 @app.on_event("startup")
 async def startup_event():
     """Connect to database on startup"""
-    global bedrock_service, ring_categorization_agent, deployment_failure_agent, gating_factor_agent, simulator_service
+    global bedrock_service, ring_categorization_agent, deployment_failure_agent, gating_factor_agent, simulator_service, deployment_scheduler
     
     db.connect()
     print("[OK] Database connected")
@@ -76,6 +81,10 @@ async def startup_event():
     # Initialize simulator service
     simulator_service = SimulatorService(db.conn)
     print("[OK] Simulator service initialized")
+    
+    # Initialize deployment scheduler
+    deployment_scheduler = DeploymentScheduler(db.conn, simulator_service)
+    print("[OK] Deployment scheduler initialized")
     
     # Load configuration
     try:
@@ -107,6 +116,11 @@ async def startup_event():
 @app.on_event("shutdown")
 async def shutdown_event():
     """Close database connection on shutdown"""
+    # Stop all active deployments
+    if deployment_scheduler:
+        for deployment_id in list(deployment_scheduler.active_deployments.keys()):
+            await deployment_scheduler.stop_deployment(deployment_id)
+    
     db.close()
     print("[OK] Database connection closed")
 
@@ -304,7 +318,7 @@ async def get_deployment_detail(deployment_id: str):
     # Get deployment-specific gating factors
     gating_factors_row = cursor.execute("""
         SELECT avg_cpu_usage_max, avg_memory_usage_max, avg_disk_free_space_min,
-               risk_score_min, risk_score_max
+               risk_score_min, risk_score_max, gating_prompt
         FROM deployment_gating_factors
         WHERE deployment_id = ?
     """, (deployment_id,)).fetchone()
@@ -317,13 +331,21 @@ async def get_deployment_detail(deployment_id: str):
             "avgDiskFreeSpaceMin": gating_factors_row[2],
             "riskScoreMin": gating_factors_row[3],
             "riskScoreMax": gating_factors_row[4],
+            "gatingPrompt": gating_factors_row[5],
         }
+    
+    # Get scheduler timer info if deployment is in progress
+    timer_info = None
+    if deployment[2] == 'In Progress':
+        timer_info = deployment_scheduler.get_deployment_timer_info(deployment_id)
     
     return {
         "deploymentId": deployment[0],
         "deploymentName": deployment[1],
+        "status": deployment[2],
         "rings": ring_list,
         "gatingFactors": gating_factors,
+        "timerInfo": timer_info,
     }
 
 
@@ -555,6 +577,7 @@ async def create_deployment(request: CreateDeploymentRequest):
     
     # Determine gating factors based on mode
     gating_factors = None
+    gating_prompt_text = None
     
     if request.gatingFactorMode == 'default':
         # Get default gating factors
@@ -599,15 +622,16 @@ async def create_deployment(request: CreateDeploymentRequest):
         
         # For now, use conservative defaults based on the prompt
         gating_factors = (80.0, 80.0, 20.0, 0, 100)
+        gating_prompt_text = request.gatingPrompt
     
     # Insert gating factors for deployment
     if gating_factors:
         cursor.execute("""
             INSERT INTO deployment_gating_factors 
             (deployment_id, avg_cpu_usage_max, avg_memory_usage_max, avg_disk_free_space_min,
-             risk_score_min, risk_score_max)
-            VALUES (?, ?, ?, ?, ?, ?)
-        """, (new_id, *gating_factors))
+             risk_score_min, risk_score_max, gating_prompt)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        """, (new_id, *gating_factors, gating_prompt_text))
     
     # Create deployment rings for all rings
     rings = cursor.execute("""
@@ -644,7 +668,7 @@ async def create_deployment(request: CreateDeploymentRequest):
 
 @app.post("/api/deployments/{deployment_id}/run")
 async def run_deployment(deployment_id: str):
-    """Start a deployment"""
+    """Start a deployment with automatic progression through rings"""
     cursor = db.conn.cursor()
     
     # Update deployment status
@@ -657,15 +681,30 @@ async def run_deployment(deployment_id: str):
     if cursor.rowcount == 0:
         raise HTTPException(status_code=404, detail="Deployment not found")
     
+    # Reset all rings to 'Not Started' status
+    cursor.execute("""
+        UPDATE deployment_rings
+        SET status = 'Not Started',
+            failure_reason = NULL,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE deployment_id = ?
+    """, (deployment_id,))
+    
     db.conn.commit()
+    
+    # Start the deployment scheduler
+    await deployment_scheduler.start_deployment(deployment_id)
     
     return {"message": "Deployment started successfully"}
 
 
 @app.post("/api/deployments/{deployment_id}/stop")
 async def stop_deployment(deployment_id: str):
-    """Stop a deployment"""
+    """Stop a deployment and cancel automatic progression"""
     cursor = db.conn.cursor()
+    
+    # Stop the deployment scheduler
+    await deployment_scheduler.stop_deployment(deployment_id)
     
     # Update deployment status
     cursor.execute("""
@@ -677,6 +716,14 @@ async def stop_deployment(deployment_id: str):
     if cursor.rowcount == 0:
         raise HTTPException(status_code=404, detail="Deployment not found")
     
+    # Stop all in-progress rings
+    cursor.execute("""
+        UPDATE deployment_rings
+        SET status = 'Stopped',
+            updated_at = CURRENT_TIMESTAMP
+        WHERE deployment_id = ? AND status = 'In Progress'
+    """, (deployment_id,))
+    
     db.conn.commit()
     
     return {"message": "Deployment stopped successfully"}
@@ -686,6 +733,9 @@ async def stop_deployment(deployment_id: str):
 async def delete_deployment(deployment_id: str):
     """Delete a deployment and its related data"""
     cursor = db.conn.cursor()
+    
+    # Stop the deployment scheduler if running
+    await deployment_scheduler.stop_deployment(deployment_id)
     
     # Check if deployment exists
     deployment = cursor.execute("""
@@ -1144,6 +1194,7 @@ async def update_deployment_ring_status_endpoint(status_update: DeploymentRingSt
     """
     Update the status of a specific ring in a deployment.
     Used by simulator to control deployment progression.
+    If status is 'In Progress', automatically checks gating factors.
     """
     try:
         result = simulator_service.update_deployment_ring_status(
@@ -1156,11 +1207,47 @@ async def update_deployment_ring_status_endpoint(status_update: DeploymentRingSt
         if result["status"] == "error":
             raise HTTPException(status_code=404, detail=result["message"])
         
+        # If ring is set to In Progress, check gating factors
+        if status_update.status == 'In Progress':
+            gating_check = simulator_service.check_gating_factors(
+                deployment_id=status_update.deploymentId,
+                ring_id=status_update.ringId
+            )
+            
+            if gating_check["status"] == "failed":
+                result["gatingFactorViolation"] = True
+                result["failureReason"] = gating_check["failureReason"]
+        
         return result
     except HTTPException:
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to update deployment status: {str(e)}")
+
+
+@app.post("/api/simulator/check-gating-factors")
+async def check_gating_factors_endpoint(request: dict):
+    """
+    Manually check gating factors for a ring in a deployment.
+    Returns violation details without automatically failing.
+    """
+    try:
+        deployment_id = request.get("deploymentId")
+        ring_id = request.get("ringId")
+        
+        if not deployment_id or ring_id is None:
+            raise HTTPException(status_code=400, detail="deploymentId and ringId are required")
+        
+        result = simulator_service.check_gating_factors(
+            deployment_id=deployment_id,
+            ring_id=ring_id
+        )
+        
+        return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to check gating factors: {str(e)}")
 
 
 @app.get("/api/simulator/deployment/{deployment_id}/ring/{ring_id}/devices")

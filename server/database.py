@@ -113,6 +113,7 @@ class Database:
                 avg_disk_free_space_min REAL,
                 risk_score_min INTEGER,
                 risk_score_max INTEGER,
+                gating_prompt TEXT,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (deployment_id) REFERENCES deployments(deployment_id)

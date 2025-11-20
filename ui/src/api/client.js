@@ -33,7 +33,19 @@ class ApiClient {
         signal: AbortSignal.timeout(30000), // 30 second timeout for AI operations
       });
       if (!response.ok) {
-        throw new Error(`API error: ${response.statusText}`);
+        // Try to get detailed error message from response
+        let errorMessage = `API error: ${response.statusText}`;
+        try {
+          const errorData = await response.json();
+          if (errorData.detail) {
+            errorMessage = Array.isArray(errorData.detail) 
+              ? errorData.detail.map(e => `${e.loc.join('.')}: ${e.msg}`).join(', ')
+              : errorData.detail;
+          }
+        } catch (e) {
+          // If we can't parse the error, use the default message
+        }
+        throw new Error(errorMessage);
       }
       return response.json();
     } catch (error) {

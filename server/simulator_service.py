@@ -227,6 +227,7 @@ class SimulatorService:
     ) -> Dict[str, Any]:
         """
         Update the status of a ring in a deployment.
+        If status is 'Failed', automatically stops all other rings and marks deployment as failed.
         
         Returns:
             Dict with status, deploymentId, ringId, and newStatus
@@ -247,6 +248,27 @@ class SimulatorService:
                 "message": f"Deployment ring not found: {deployment_id}, Ring {ring_id}"
             }
         
+        # If a ring failed, stop all other rings and mark deployment as failed
+        if status == 'Failed':
+            # Stop all other rings that are not completed
+            cursor.execute("""
+                UPDATE deployment_rings
+                SET status = 'Stopped',
+                    failure_reason = 'Deployment stopped due to failure in another ring',
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE deployment_id = ? 
+                  AND ring_id != ?
+                  AND status NOT IN ('Completed', 'Failed')
+            """, (deployment_id, ring_id))
+            
+            # Mark deployment as failed
+            cursor.execute("""
+                UPDATE deployments
+                SET status = 'Failed',
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE deployment_id = ?
+            """, (deployment_id,))
+        
         self.conn.commit()
         
         return {
@@ -254,6 +276,130 @@ class SimulatorService:
             "deploymentId": deployment_id,
             "ringId": ring_id,
             "newStatus": status
+        }
+    
+    def check_gating_factors(
+        self,
+        deployment_id: str,
+        ring_id: int
+    ) -> Dict[str, Any]:
+        """
+        Check if devices in a ring violate gating factors.
+        If violations detected, automatically fail the ring and deployment.
+        
+        Returns:
+            Dict with status, violations detected, and failure reason if applicable
+        """
+        cursor = self.conn.cursor()
+        
+        # Get gating factors for this deployment
+        gating = cursor.execute("""
+            SELECT avg_cpu_usage_max, avg_memory_usage_max, avg_disk_free_space_min, risk_score_max
+            FROM deployment_gating_factors
+            WHERE deployment_id = ?
+        """, (deployment_id,)).fetchone()
+        
+        if not gating:
+            return {
+                "status": "error",
+                "message": "No gating factors found for deployment"
+            }
+        
+        avg_cpu_max, avg_mem_max, avg_disk_min, risk_max = gating
+        
+        # Get devices in this ring
+        devices = cursor.execute("""
+            SELECT device_id, avg_cpu_usage, avg_memory_usage, avg_disk_space, risk_score
+            FROM devices
+            WHERE ring = ?
+        """, (ring_id,)).fetchall()
+        
+        if not devices:
+            return {
+                "status": "success",
+                "violations": [],
+                "message": "No devices in ring"
+            }
+        
+        # Check for violations
+        violations = {
+            'cpu': [],
+            'memory': [],
+            'disk': [],
+            'risk': []
+        }
+        
+        for device in devices:
+            device_id, cpu, mem, disk, risk = device
+            
+            if avg_cpu_max and cpu > avg_cpu_max:
+                violations['cpu'].append((device_id, cpu))
+            
+            if avg_mem_max and mem > avg_mem_max:
+                violations['memory'].append((device_id, mem))
+            
+            if avg_disk_min and disk < avg_disk_min:
+                violations['disk'].append((device_id, disk))
+            
+            if risk_max and risk > risk_max:
+                violations['risk'].append((device_id, risk))
+        
+        # Determine if deployment should fail
+        total_violations = sum(len(v) for v in violations.values())
+        
+        if total_violations > 0:
+            # Determine primary failure reason based on most common violation
+            failure_reasons = []
+            
+            if violations['cpu']:
+                avg_cpu = sum(v[1] for v in violations['cpu']) / len(violations['cpu'])
+                failure_reasons.append(
+                    f"High CPU usage detected: {len(violations['cpu'])} device(s) averaging {avg_cpu:.1f}% "
+                    f"(threshold: {avg_cpu_max}%)"
+                )
+            
+            if violations['memory']:
+                avg_mem = sum(v[1] for v in violations['memory']) / len(violations['memory'])
+                failure_reasons.append(
+                    f"High memory usage detected: {len(violations['memory'])} device(s) averaging {avg_mem:.1f}% "
+                    f"(threshold: {avg_mem_max}%)"
+                )
+            
+            if violations['disk']:
+                avg_disk = sum(v[1] for v in violations['disk']) / len(violations['disk'])
+                failure_reasons.append(
+                    f"Low disk space detected: {len(violations['disk'])} device(s) averaging {avg_disk:.1f}% free "
+                    f"(threshold: {avg_disk_min}%)"
+                )
+            
+            if violations['risk']:
+                avg_risk = sum(v[1] for v in violations['risk']) / len(violations['risk'])
+                failure_reasons.append(
+                    f"High risk score detected: {len(violations['risk'])} device(s) averaging {avg_risk:.0f} "
+                    f"(threshold: {risk_max})"
+                )
+            
+            failure_reason = "; ".join(failure_reasons)
+            
+            # Automatically fail the ring
+            self.update_deployment_ring_status(
+                deployment_id=deployment_id,
+                ring_id=ring_id,
+                status='Failed',
+                failure_reason=failure_reason
+            )
+            
+            return {
+                "status": "failed",
+                "violations": violations,
+                "failureReason": failure_reason,
+                "totalViolations": total_violations
+            }
+        
+        return {
+            "status": "success",
+            "violations": [],
+            "message": "All devices within gating factor thresholds"
         }
     
     def get_ring_devices(self, deployment_id: str, ring_id: int) -> List[Dict[str, Any]]:

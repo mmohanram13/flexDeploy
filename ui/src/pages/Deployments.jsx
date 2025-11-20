@@ -39,6 +39,7 @@ export default function Deployments() {
       avgCpuUsageMax: 100,
       avgMemoryUsageMax: 100,
       avgDiskFreeSpaceMin: 0,
+      riskScoreMax: 100,
     },
     gatingPrompt: '',
   });
@@ -132,6 +133,7 @@ export default function Deployments() {
         avgCpuUsageMax: 100,
         avgMemoryUsageMax: 100,
         avgDiskFreeSpaceMin: 0,
+        riskScoreMax: 100,
       },
       gatingPrompt: '',
     });
@@ -302,50 +304,75 @@ export default function Deployments() {
                 <Typography variant="subtitle2" gutterBottom>
                   Custom Gating Factors
                 </Typography>
-                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                  <TextField
-                    label="Avg CPU Usage Max (%)"
-                    type="number"
-                    value={newDeployment.customGatingFactors.avgCpuUsageMax}
-                    onChange={(e) => setNewDeployment({
-                      ...newDeployment,
-                      customGatingFactors: {
-                        ...newDeployment.customGatingFactors,
-                        avgCpuUsageMax: parseFloat(e.target.value) || 0
-                      }
-                    })}
-                    inputProps={{ min: 0, max: 100 }}
-                    fullWidth
-                  />
-                  <TextField
-                    label="Avg Memory Usage Max (%)"
-                    type="number"
-                    value={newDeployment.customGatingFactors.avgMemoryUsageMax}
-                    onChange={(e) => setNewDeployment({
-                      ...newDeployment,
-                      customGatingFactors: {
-                        ...newDeployment.customGatingFactors,
-                        avgMemoryUsageMax: parseFloat(e.target.value) || 0
-                      }
-                    })}
-                    inputProps={{ min: 0, max: 100 }}
-                    fullWidth
-                  />
-                  <TextField
-                    label="Avg Disk Free Space Min (%)"
-                    type="number"
-                    value={newDeployment.customGatingFactors.avgDiskFreeSpaceMin}
-                    onChange={(e) => setNewDeployment({
-                      ...newDeployment,
-                      customGatingFactors: {
-                        ...newDeployment.customGatingFactors,
-                        avgDiskFreeSpaceMin: parseFloat(e.target.value) || 0
-                      }
-                    })}
-                    inputProps={{ min: 0, max: 100 }}
-                    fullWidth
-                  />
-                </Box>
+                <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                  Monitoring frequency: 30 seconds
+                </Typography>
+                <Grid container spacing={2}>
+                  <Grid item xs={12} sm={6}>
+                    <TextField
+                      label="Avg CPU Usage Max (%)"
+                      type="number"
+                      value={newDeployment.customGatingFactors.avgCpuUsageMax}
+                      onChange={(e) => setNewDeployment({
+                        ...newDeployment,
+                        customGatingFactors: {
+                          ...newDeployment.customGatingFactors,
+                          avgCpuUsageMax: parseFloat(e.target.value) || 0
+                        }
+                      })}
+                      inputProps={{ min: 0, max: 100 }}
+                      fullWidth
+                    />
+                  </Grid>
+                  <Grid item xs={12} sm={6}>
+                    <TextField
+                      label="Avg Memory Usage Max (%)"
+                      type="number"
+                      value={newDeployment.customGatingFactors.avgMemoryUsageMax}
+                      onChange={(e) => setNewDeployment({
+                        ...newDeployment,
+                        customGatingFactors: {
+                          ...newDeployment.customGatingFactors,
+                          avgMemoryUsageMax: parseFloat(e.target.value) || 0
+                        }
+                      })}
+                      inputProps={{ min: 0, max: 100 }}
+                      fullWidth
+                    />
+                  </Grid>
+                  <Grid item xs={12} sm={6}>
+                    <TextField
+                      label="Avg Disk Free Space Min (%)"
+                      type="number"
+                      value={newDeployment.customGatingFactors.avgDiskFreeSpaceMin}
+                      onChange={(e) => setNewDeployment({
+                        ...newDeployment,
+                        customGatingFactors: {
+                          ...newDeployment.customGatingFactors,
+                          avgDiskFreeSpaceMin: parseFloat(e.target.value) || 0
+                        }
+                      })}
+                      inputProps={{ min: 0, max: 100 }}
+                      fullWidth
+                    />
+                  </Grid>
+                  <Grid item xs={12} sm={6}>
+                    <TextField
+                      label="Max Risk Score"
+                      type="number"
+                      value={newDeployment.customGatingFactors.riskScoreMax}
+                      onChange={(e) => setNewDeployment({
+                        ...newDeployment,
+                        customGatingFactors: {
+                          ...newDeployment.customGatingFactors,
+                          riskScoreMax: parseFloat(e.target.value) || 0
+                        }
+                      })}
+                      inputProps={{ min: 0, max: 100 }}
+                      fullWidth
+                    />
+                  </Grid>
+                </Grid>
               </Paper>
             )}
 

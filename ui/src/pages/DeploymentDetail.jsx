@@ -119,63 +119,133 @@ export default function DeploymentDetail() {
 
   return (
     <Box>
-      <Typography variant="h4" gutterBottom>
-        {details.deploymentName}
-      </Typography>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+        <Typography variant="h4">
+          {details.deploymentName}
+        </Typography>
+        <Chip
+          label={details.status}
+          color={getStatusColor(details.status)}
+          size="large"
+        />
+      </Box>
 
       <Paper elevation={2} sx={{ p: 3, mb: 3 }}>
         <Grid container spacing={2}>
-          <Grid item xs={12} sm={6}>
+          <Grid item xs={12} sm={4}>
             <Typography variant="body2" color="text.secondary">
               Deployment ID
             </Typography>
             <Typography variant="body1">{details.deploymentId}</Typography>
           </Grid>
+          <Grid item xs={12} sm={4}>
+            <Typography variant="body2" color="text.secondary">
+              Status
+            </Typography>
+            <Chip
+              label={details.status}
+              color={getStatusColor(details.status)}
+              size="medium"
+            />
+          </Grid>
+          {details.timerInfo && (
+            <Grid item xs={12} sm={4}>
+              <Typography variant="body2" color="text.secondary">
+                Current Ring
+              </Typography>
+              <Typography variant="body1">
+                Ring {details.timerInfo.currentRing}
+              </Typography>
+            </Grid>
+          )}
         </Grid>
+        
+        {details.timerInfo && details.timerInfo.nextCheckTime && (
+          <Box sx={{ mt: 2, p: 2, bgcolor: 'info.light', borderRadius: 1 }}>
+            <Typography variant="body2" color="text.secondary" gutterBottom>
+              Next Gating Factor Check
+            </Typography>
+            <Typography variant="body1" fontWeight="bold">
+              {new Date(details.timerInfo.nextCheckTime).toLocaleTimeString()}
+            </Typography>
+            <Typography variant="caption" color="text.secondary">
+              Automated deployment progression active (30-second intervals)
+            </Typography>
+          </Box>
+        )}
       </Paper>
 
       {/* Gating Factors Section */}
-      {details.gatingFactors && (
-        <>
-          <Typography variant="h6" gutterBottom>
-            Gating Factors
-          </Typography>
-          <Paper elevation={2} sx={{ p: 3, mb: 3 }}>
-            <Grid container spacing={2}>
-              <Grid item xs={12} sm={4}>
-                <Typography variant="body2" color="text.secondary">
-                  Avg CPU Usage Max
-                </Typography>
-                <Typography variant="body1">
-                  {details.gatingFactors.avgCpuUsageMax !== null 
-                    ? `${details.gatingFactors.avgCpuUsageMax}%` 
-                    : '--'}
-                </Typography>
-              </Grid>
-              <Grid item xs={12} sm={4}>
-                <Typography variant="body2" color="text.secondary">
-                  Avg Memory Usage Max
-                </Typography>
-                <Typography variant="body1">
-                  {details.gatingFactors.avgMemoryUsageMax !== null 
-                    ? `${details.gatingFactors.avgMemoryUsageMax}%` 
-                    : '--'}
-                </Typography>
-              </Grid>
-              <Grid item xs={12} sm={4}>
-                <Typography variant="body2" color="text.secondary">
-                  Avg Disk Free Space Min
-                </Typography>
-                <Typography variant="body1">
-                  {details.gatingFactors.avgDiskFreeSpaceMin !== null 
-                    ? `${details.gatingFactors.avgDiskFreeSpaceMin}%` 
-                    : '--'}
-                </Typography>
-              </Grid>
-            </Grid>
-          </Paper>
-        </>
-      )}
+      <Typography variant="h6" gutterBottom>
+        Gating Factors
+      </Typography>
+      <Paper elevation={2} sx={{ p: 3, mb: 3 }}>
+        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+          Monitoring frequency: 30 seconds
+        </Typography>
+        
+        {details.gatingFactors?.gatingPrompt && (
+          <Box sx={{ mb: 3, p: 2, bgcolor: 'primary.light', borderRadius: 1, borderLeft: 4, borderColor: 'primary.main' }}>
+            <Typography variant="body2" color="text.secondary" gutterBottom>
+              Gating Criteria (AI-Powered)
+            </Typography>
+            <Typography variant="body1" sx={{ fontStyle: 'italic' }}>
+              "{details.gatingFactors.gatingPrompt}"
+            </Typography>
+          </Box>
+        )}
+        
+        <Grid container spacing={2}>
+          <Grid item xs={12} sm={3}>
+            <Paper elevation={1} sx={{ p: 2 }}>
+              <Typography variant="body2" color="text.secondary" gutterBottom>
+                Avg CPU Usage Max (%)
+              </Typography>
+              <Typography variant="h6">
+                {details.gatingFactors?.avgCpuUsageMax !== null && details.gatingFactors?.avgCpuUsageMax !== undefined
+                  ? `${details.gatingFactors.avgCpuUsageMax}%` 
+                  : '--'}
+              </Typography>
+            </Paper>
+          </Grid>
+          <Grid item xs={12} sm={3}>
+            <Paper elevation={1} sx={{ p: 2 }}>
+              <Typography variant="body2" color="text.secondary" gutterBottom>
+                Avg Memory Usage Max (%)
+              </Typography>
+              <Typography variant="h6">
+                {details.gatingFactors?.avgMemoryUsageMax !== null && details.gatingFactors?.avgMemoryUsageMax !== undefined
+                  ? `${details.gatingFactors.avgMemoryUsageMax}%` 
+                  : '--'}
+              </Typography>
+            </Paper>
+          </Grid>
+          <Grid item xs={12} sm={3}>
+            <Paper elevation={1} sx={{ p: 2 }}>
+              <Typography variant="body2" color="text.secondary" gutterBottom>
+                Avg Disk Free Space Min (%)
+              </Typography>
+              <Typography variant="h6">
+                {details.gatingFactors?.avgDiskFreeSpaceMin !== null && details.gatingFactors?.avgDiskFreeSpaceMin !== undefined
+                  ? `${details.gatingFactors.avgDiskFreeSpaceMin}%` 
+                  : '--'}
+              </Typography>
+            </Paper>
+          </Grid>
+          <Grid item xs={12} sm={3}>
+            <Paper elevation={1} sx={{ p: 2 }}>
+              <Typography variant="body2" color="text.secondary" gutterBottom>
+                Max Risk Score
+              </Typography>
+              <Typography variant="h6">
+                {details.gatingFactors?.riskScoreMax !== null && details.gatingFactors?.riskScoreMax !== undefined
+                  ? details.gatingFactors.riskScoreMax 
+                  : '--'}
+              </Typography>
+            </Paper>
+          </Grid>
+        </Grid>
+      </Paper>
 
       <Typography variant="h6" gutterBottom>
         Rings
@@ -262,7 +332,7 @@ export default function DeploymentDetail() {
                               <TableCell align="right">
                                 <Chip 
                                   label={device.riskScore}
-                                  color={device.riskScore >= 70 ? 'success' : device.riskScore >= 31 ? 'warning' : 'error'}
+                                  color={device.riskScore >= 71 ? 'error' : device.riskScore >= 31 ? 'warning' : 'success'}
                                   size="small"
                                 />
                               </TableCell>
