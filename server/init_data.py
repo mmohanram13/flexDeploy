@@ -10,25 +10,25 @@ RINGS: List[Tuple[int, str, str]] = [
     (
         0,
         'Ring 0 - Canary (Test Bed)',
-        'Test devices for initial validation. Non-production systems only.'
+        'Test devices for initial validation. Sysadmin or Non-production systems only.'
+        'Device with lowest risk scores (0-10), minimal cpu usage, memory usage.'
     ),
     (
         1,
         'Ring 1 - Low Risk Devices',
-        'Devices with stable configurations, recent successful deployment history, '
-        'low risk scores (71-100), standard configurations, non-executive users.'
+        'Devices with recent successful deployment history or minimal cpu usage, memory usage, or'
+        'risk scores (31-70), non-management users.'
     ),
     (
         2,
         'Ring 2 - High Risk Devices',
         'Business-critical devices with moderate to high resource usage, '
-        'risk scores (31-70), mixed configurations, production systems.'
+        'high risk scores (71-100 indicating high resource usage), production systems.'
     ),
     (
         3,
         'Ring 3 - VIP Devices',
-        'Executive and leadership devices, highest stability requirements, '
-        'risk scores (0-30 indicating high resource usage), critical systems. '
+        'Management devices, highest stability requirements, '
         'Deploy only after all other rings successful.'
     ),
 ]

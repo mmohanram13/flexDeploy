@@ -38,6 +38,11 @@ class SimulatorService:
         """
         cursor = self.conn.cursor()
         
+        # Round usage values to 2 decimal places
+        avg_cpu_usage = round(avg_cpu_usage, 2)
+        avg_memory_usage = round(avg_memory_usage, 2)
+        avg_disk_space = round(avg_disk_space, 2)
+        
         # Calculate risk score if not provided
         if risk_score is None:
             risk_score = self._calculate_risk_score(
@@ -96,6 +101,11 @@ class SimulatorService:
         """
         cursor = self.conn.cursor()
         
+        # Round usage values to 2 decimal places
+        avg_cpu_usage = round(avg_cpu_usage, 2)
+        avg_memory_usage = round(avg_memory_usage, 2)
+        avg_disk_space = round(avg_disk_space, 2)
+        
         # Calculate risk score if not provided
         if risk_score is None:
             risk_score = self._calculate_risk_score(
@@ -152,6 +162,14 @@ class SimulatorService:
                 "status": "error",
                 "message": f"No devices found in ring {ring_id}"
             }
+        
+        # Round usage values to 2 decimal places if provided
+        if avg_cpu_usage is not None:
+            avg_cpu_usage = round(avg_cpu_usage, 2)
+        if avg_memory_usage is not None:
+            avg_memory_usage = round(avg_memory_usage, 2)
+        if avg_disk_space is not None:
+            avg_disk_space = round(avg_disk_space, 2)
         
         updated_count = 0
         for device in devices:
@@ -335,9 +353,9 @@ class SimulatorService:
         
         Formula:
         - avg_usage = (CPU + Memory + (100 - Disk)) / 3
-        - >80% usage  → Risk 0-30   (High Risk)
+        - >80% usage  → Risk 71-100 (High Risk)
         - >50% usage  → Risk 31-70  (Medium Risk)
-        - ≤50% usage  → Risk 71-100 (Low Risk)
+        - ≤50% usage  → Risk 0-30   (Low Risk)
         
         Returns:
             Risk score (0-100)
@@ -345,10 +363,10 @@ class SimulatorService:
         avg_usage = (avg_cpu_usage + avg_memory_usage + (100 - avg_disk_space)) / 3
         
         if avg_usage > 80:
-            risk_score = int(30 - (avg_usage - 80) * 1.5)
+            risk_score = int(71 + (avg_usage - 80) * 1.45)
         elif avg_usage > 50:
-            risk_score = int(70 - (avg_usage - 50))
+            risk_score = int(31 + (avg_usage - 50) * 1.33)
         else:
-            risk_score = int(71 + (50 - avg_usage) * 0.58)
+            risk_score = int(30 - (50 - avg_usage) * 0.6)
         
         return max(0, min(100, risk_score))

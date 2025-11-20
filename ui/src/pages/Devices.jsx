@@ -39,9 +39,9 @@ export default function Devices() {
   }, []);
 
   const getChipColor = (riskScore) => {
-    if (riskScore >= 71) return 'success';
+    if (riskScore >= 71) return 'error';
     if (riskScore >= 31) return 'warning';
-    return 'error';
+    return 'success';
   };
 
   const handleSort = (property) => {

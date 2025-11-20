@@ -240,41 +240,51 @@ export default function Simulator() {
       const models = ['Latitude', 'EliteBook', 'ThinkPad', 'MacBook Pro', 'Surface'];
       const osNames = ['Windows 10', 'Windows 11', 'macOS', 'Ubuntu'];
       const sites = ['New York', 'San Francisco', 'London', 'Tokyo', 'Sydney'];
-      const departments = ['Engineering', 'IT', 'Marketing', 'Sysadmin', 'Finance', 'Executive', 'Leadership'];
+      const departments = ['Engineering', 'Sales', 'Marketing', 'Sysadmin', 'Finance', 'Management'];
 
       let createdCount = 0;
       
       for (let i = 0; i < deviceCount; i++) {
         const deviceId = `DEV-${Date.now()}-${i}`;
         
-        // Create varied device profiles for better risk score distribution
-        // 25% low usage (high risk scores 71-100)
-        // 40% medium usage (medium risk scores 31-70)  
-        // 25% high usage (low risk scores 0-30)
-        // 10% very low usage (test devices)
+        // Create varied device profiles for risk score distribution
+        // Risk Score Logic (REVERSED):
+        //   - >80% usage → Risk Score 71-100 (HIGH RISK - RED)
+        //   - >50% usage → Risk Score 31-70 (MEDIUM RISK - YELLOW)
+        //   - ≤50% usage → Risk Score 0-30 (LOW RISK - GREEN)
+        //
+        // Distribution:
+        //   - 30% Low Risk (0-30) - ≤50% resource usage
+        //   - 40% Medium Risk (31-70) - 50-80% resource usage
+        //   - 30% High Risk (71-100) - >80% resource usage
+        
         const profile = Math.random();
         let avgCpuUsage, avgMemoryUsage, avgDiskSpace;
         
-        if (profile < 0.10) {
-          // Very low usage - test/canary devices
-          avgCpuUsage = Math.random() * 15 + 5;  // 5-20%
-          avgMemoryUsage = Math.random() * 20 + 10;  // 10-30%
-          avgDiskSpace = Math.random() * 20 + 10;  // 10-30% (lots of free space)
-        } else if (profile < 0.35) {
-          // Low usage - stable devices
-          avgCpuUsage = Math.random() * 20 + 15;  // 15-35%
-          avgMemoryUsage = Math.random() * 25 + 20;  // 20-45%
-          avgDiskSpace = Math.random() * 25 + 20;  // 20-45%
-        } else if (profile < 0.75) {
-          // Medium usage - typical production
-          avgCpuUsage = Math.random() * 30 + 40;  // 40-70%
-          avgMemoryUsage = Math.random() * 30 + 40;  // 40-70%
-          avgDiskSpace = Math.random() * 30 + 45;  // 45-75%
+        if (profile < 0.30) {
+          // LOW RISK DEVICES (Risk Score 0-30)
+          // ≤50% resource usage - healthy, stable devices
+          avgCpuUsage = Math.random() * 35 + 10;  // 10-45%
+          avgMemoryUsage = Math.random() * 35 + 10;  // 10-45%
+          // For disk: low usage means lots of FREE space (100 - usage)
+          const diskUsage = Math.random() * 35 + 10;  // 10-45% used
+          avgDiskSpace = 100 - diskUsage;  // 55-90% FREE (inverted to show free space)
+        } else if (profile < 0.70) {
+          // MEDIUM RISK DEVICES (Risk Score 31-70)
+          // 50-80% resource usage - moderate load, typical production
+          avgCpuUsage = Math.random() * 30 + 50;  // 50-80%
+          avgMemoryUsage = Math.random() * 30 + 50;  // 50-80%
+          // For disk: medium usage means moderate FREE space
+          const diskUsage = Math.random() * 30 + 50;  // 50-80% used
+          avgDiskSpace = 100 - diskUsage;  // 20-50% FREE (inverted to show free space)
         } else {
-          // High usage - stressed devices
-          avgCpuUsage = Math.random() * 15 + 75;  // 75-90%
-          avgMemoryUsage = Math.random() * 15 + 75;  // 75-90%
-          avgDiskSpace = Math.random() * 15 + 75;  // 75-90%
+          // HIGH RISK DEVICES (Risk Score 71-100)
+          // >80% resource usage - stressed, critical devices
+          avgCpuUsage = Math.random() * 15 + 80;  // 80-95%
+          avgMemoryUsage = Math.random() * 15 + 80;  // 80-95%
+          // For disk: high usage means very little FREE space
+          const diskUsage = Math.random() * 15 + 80;  // 80-95% used
+          avgDiskSpace = 100 - diskUsage;  // 5-20% FREE (inverted to show free space)
         }
         
         const deviceData = {
